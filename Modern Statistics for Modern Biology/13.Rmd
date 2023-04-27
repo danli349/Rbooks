@@ -1,0 +1,377 @@
+---
+title: '13'
+output: html_document
+date: "2023-04-26"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 13 Design of High Throughput Experiments and their Analyses  
+
+
+```{r}
+## -----------------------------------------------------------------------------
+library("dplyr")
+bat6 = tibble(
+  state  = factor(c("healthy", "disease")[rep(1:2, 6)]),
+  time  = factor(rep(1:3, each = 4)),
+  exprst = 0.5 * as.integer(time) + rep(c(0.5, 1), 6) + rnorm(12, 0, 0.3),
+  exprs0 = rep(c(1.5, 2), 6) + rnorm(12,0,0.1),
+  batch  = factor(c("Batch 1", "Batch 2")[rep(c(1, 2), 6)]))
+bat6[1:6,]
+```
+
+```{r}
+ms0 = group_by(bat6, state) |> summarize(y = median(exprs0))
+ms0
+```
+
+```{r}
+bat60 = tibble(
+  state = factor(c("healthy", "disease")[rep(c(1, 2), 60)], levels = c("healthy", "disease")),
+  exprs = rep(c(1.5, 2), 60) + rnorm(120, 0, 0.3))
+## save(bat60, bat6, ms0, file = "../data/designI.rda")
+
+bat60[1:10,]
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+library("ggplot2")
+library("gridExtra")
+library("ggbeeswarm")
+## load("../data/designI.rda")
+p0 = ggplot(bat6, aes(x = state, y = exprs0)) +
+       geom_boxplot(alpha = 0.5, col="blue") + geom_beeswarm(size = 2, cex = 6) + # geom_point(size = 2) +
+       ylab("biomarker level")
+grid.arrange(p0, p0 + geom_beeswarm(aes(col = batch), size = 2, cex = 6),  # geom_point(aes(col = batch), size = 2),
+  ncol = 2, widths = c(1.3, 2))
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+p0 + geom_segment(data = ms0, aes(y = y[1], yend = y[2]),
+    x = 1.5, xend = 1.5, col = "red", arrow = arrow(length = unit(0.5, "cm"),
+    ends = "both", type = "closed"))
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+p = ggplot(bat6, aes(x = state, y = exprst)) + geom_boxplot(alpha = 0.5, col = "blue") +
+    ylim(c(0.5, 3)) + ylab("biomarker level")
+p1 = p + geom_beeswarm(size = 2, cex = 6) # geom_point(size = 2)
+p1
+
+```
+
+```{r}
+p2 = p + geom_beeswarm(aes(col = time), size = 2, cex = 6) + geom_point(aes(col = time), size = 2)
+p2
+```
+
+```{r}
+mN = summarise(group_by(bat60, state), med = median(exprs))
+mN
+```
+
+```{r}
+pN = ggplot(bat60, aes(x = state, y = exprs)) + geom_boxplot(alpha = 0.5, col="blue") +
+  ylab("biomarker level") + ylim(c(0.5,3)) + geom_beeswarm(size = 2, cex = 2)  +
+  geom_segment(data = mN, aes(y = med[1],yend=med[2]), x = 1.5, xend = 1.5,
+               col = "red", arrow = arrow(length = unit(0.5, "cm"), ends = "both", type = "closed"))
+grid.arrange(p1, pN, ncol = 2, widths = c(1.6, 2.5))
+```
+```{r}
+sample(8, 8)
+rnorm(8)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+theta = round((2 * sample(8, 8) + rnorm(8)), 1)
+theta
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+X = theta + rnorm(length(theta), 0, 0.1)
+X
+errors1 = X - theta
+errors1
+sum(errors1^2)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+library("survey")
+h8 = hadamard(6)
+h8
+```
+
+```{r}
+coef8 = 2*h8 - 1
+coef8
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+Y = theta  %*% coef8 + rnorm(length(theta), 0, 0.1)
+
+Y
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+coef8 %*% t(coef8)
+theta %*% coef8 %*% t(coef8) / ncol(coef8)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+thetahat = Y %*% t(coef8) / ncol(coef8)
+thetahat
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+errors2 = as.vector(thetahat) - theta
+errors2
+sum(errors2^2)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+B  = 10000
+tc = t(coef8) / ncol(coef8)
+sse = replicate(B, {
+  theta = round((2 * sample(8, 8)) + rnorm(8), 1)
+  X = theta + rnorm(length(theta), 0, 0.1)
+  err1 = sum((X - theta)^2)
+  Y = coef8 %*% theta + rnorm(length(theta), 0, 0.1)
+  thetahat = tc %*% Y
+  err2 = sum((thetahat - theta)^2)
+  c(err1, err2)
+})
+rowMeans(sse)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+ggplot(tibble(lr = log2(sse[1, ] / sse[2, ])), aes(x = lr)) +
+  geom_histogram(bins = 50) +
+  geom_vline(xintercept = log2(8), col = "orange") +
+  xlab("log2 ratio of SSE, Method 1 vs 2")
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+grid.arrange(p1, p2, ncol = 2, widths = c(1.3, 2))
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+n = 15
+effect = 0.2
+pots   = rnorm(n, 0, 1)
+noiseh = rnorm(n, 0, 0.25)
+noisea = rnorm(n, 0, 0.25)
+hybrid = pots + effect + noiseh
+autoz  = pots + noisea
+
+## -----------------------------------------------------------------------------
+t.test(hybrid, autoz, paired = FALSE)
+t.test(hybrid, autoz, paired = TRUE)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+B     = 1000
+alpha = 0.05
+what  = c(FALSE, TRUE)
+pvs = replicate(B, {
+  pots   = rnorm(n, 0, 1)
+  noiseh = rnorm(n, 0, 0.25)
+  noisea = rnorm(n, 0, 0.25)
+  hybrid = pots + effect + noiseh
+  autoz  = pots + noisea
+  vapply(what,
+    function(paired)
+      t.test(hybrid, autoz, paired = paired)$p.value,
+    double(1)) |> setNames(paste(what))
+})
+rowMeans(pvs <= alpha)
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+tidyr::pivot_longer(as.data.frame(t(pvs)), cols = everything(), names_to = "paired") |>
+  ggplot(aes(x = value, fill = paired)) +
+  geom_histogram(binwidth = 0.01, boundary = 0, alpha = 1/3)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+powercomparison = function(effect = 0.2, n = 15, alpha = 0.05,
+                sdnoise, sdpots, B = 1000) {
+  what = c(FALSE, TRUE)
+  pvs = replicate(B, {
+    pots   = rnorm(n, 0, sdpots)
+    noiseh = rnorm(n, 0, sdnoise)
+    noisea = rnorm(n, 0, sdnoise)
+    hybrid = pots + effect + noiseh
+    autoz  = pots + noisea
+    vapply(what,
+      function(paired)
+        t.test(hybrid, autoz, paired = paired)$p.value,
+      double(1)) |> setNames(paste(what))
+  })
+  rowMeans(pvs <= alpha)
+}
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+powercomparison(sdpots = 0.5,  sdnoise = 0.25)
+```
+
+```{r}
+
+powercomparison(sdpots = 0.25, sdnoise = 0.25)
+powercomparison(sdpots = 0.1,  sdnoise = 0.25)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+powercomparison(sdpots = 0.5, sdnoise = 0.5, n = 100)
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+library("pwr")
+str(pwr.t.test)
+
+## -----------------------------------------------------------------------------
+pwr.t.test(n = 15, d = 0.4, sig.level = 0.05, type = "two.sample")
+```
+
+```{r}
+pwr.t.test(n = 15, d = 0.4, sig.level = 0.05, type = "paired")
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+pwr.t.test(d = 0.4, sig.level = 0.05, type = "two.sample", power=0.8)
+```
+
+```{r}
+pwr.t.test(d = 0.4, sig.level = 0.05, type = "paired", power=0.8)
+```
+
+```{r}
+sample(100, 12)
+```
+
+```{r}
+seq(3, 100, by = 3)
+
+```
+
+```{r}
+sample(seq(3, 100, by = 3), 12 / 3)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+doPoll = function(n = 100, numPeoplePolled = 12) {
+  opinion = sort(rnorm(n))
+  i1 = sample(n, numPeoplePolled)
+  i2 = sample(seq(3, n, by = 3), numPeoplePolled / 3)
+  i2 = c(i2, i2 - 1, i2 - 2)
+  c(independent = mean(opinion[i1]), correlated = mean(opinion[i2]))
+}
+responses = replicate(5000, doPoll())
+dim(responses)
+```
+
+```{r}
+responses[,1:10]
+```
+
+
+```{r}
+tidyr::pivot_longer(as.data.frame(t(responses)), 
+        cols = everything(), names_to = "design") |>
+ggplot(aes(x = value, col = design)) + geom_density() +
+  geom_vline(xintercept = 0) + xlab("Opinion poll result")
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+library("magrittr")
+data("x", package = "Hiiragi2013")
+xwdf = tibble(
+  probe  = c("1420085_at", "1418863_at", "1425463_at", "1416967_at"),
+  symbol = c(      "Fgf4",      "Gata4",      "Gata6",       "Sox2"))
+xwdf %<>% bind_cols(as_tibble(Biobase::exprs(x)[xwdf$probe, ]))
+dim(xwdf)
+```
+
+```{r}
+xwdf[, 1:5]
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+library("tidyr")
+xldf = pivot_longer(xwdf, cols = !all_of(c("probe", "symbol")),
+                          names_to = "sample")
+dim(xldf)
+head(xldf)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+a = runif(1e6)
+b = runif(length(a))
+system.time({
+  z1 = numeric(length(a))
+  for (i in seq(along = a))
+    z1[i] = a[i]^2 * b[i]
+})
+system.time({
+  z2 = a^2 * b
+})
+identical(z1, z2)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+stopifnot(identical(z1, z2))
+
+## -----------------------------------------------------------------------------
+library("Rcpp")
+cppFunction("
+  NumericVector myfun(NumericVector x, NumericVector y) {
+    int n = x.size();
+    NumericVector out(n);
+    for(int i = 0; i < n; ++i) {
+      out[i] = pow(x[i], 2) * y[i];
+    }
+    return out;
+  }")
+z3 = myfun(a, b)
+identical(z1, z3)
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+stopifnot(identical(z1, z3))
+
+```
+

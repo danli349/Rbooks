@@ -1,0 +1,446 @@
+---
+title: "Modern Statistics for Modern Biology"
+output: html_document
+date: "2023-03-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1  Generative Models for Discrete Data  
+
+```{r}
+## -----------------------------------------------------------------------------
+dpois(x = 3, lambda = 5)
+
+```
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+.oldopt = options(digits = 2)
+0:12
+dpois(x = 0:12, lambda = 5)
+barplot(dpois(0:12, 5), names.arg = 0:12, col = "red")
+options(.oldopt)
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+genotype = c("AA","AO","BB","AO","OO","AO","AA","BO","BO",
+             "AO","BB","AO","BO","AB","OO","AB","BB","AO","AO")
+table(genotype)
+
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+genotypeF = factor(genotype)
+levels(genotypeF)
+table(genotypeF)
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+rbinom(15, prob = 0.5, size = 1)
+
+## -----------------------------------------------------------------------------
+rbinom(12, prob = 2/3, size = 1)
+
+## -----------------------------------------------------------------------------
+rbinom(1, prob = 2/3, size = 12)
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+set.seed(235569515)
+rbinom(1, prob = 0.3, size = 15)
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+probabilities = dbinom(0:15, prob = 0.3, size = 15)
+round(probabilities, 2)
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+barplot(probabilities, names.arg = 0:15, col = "red")
+
+## -----------------------------------------------------------------------------
+plot(dbinom(0:12, prob = 5e-4, size = 1e4), dpois(0:12, lambda = 5), asp = 1)
+abline(a = 0, b = 1, col = "blue")
+```
+```{r}
+
+## -----------------------------------------------------------------------------
+5^3 * exp(-5) / factorial(3)
+```
+```{r}
+
+## -----------------------------------------------------------------------------
+rbinom(1, prob = 5e-4, size = 10000)
+simulations = rbinom(n = 300000, prob = 5e-4, size = 10000)
+barplot(table(simulations), col = "lavender")
+```
+```{r}
+
+## -----------------------------------------------------------------------------
+`[<-`(rep(0, 100), 22, 1)
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+s100 = rpois(100, lambda=0.5)
+s100
+barplot(s100, ylim = c(0, 7), width = 0.7, xlim = c(-0.5,100.5),
+  names.arg = seq(along = s100), col="lavender")
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+## set.seed(8969311)
+## e100 = rpois(100,lambda = 0.5)
+## e100[42] = 7
+## save(e100, file = "../data/e100.RData")
+
+## -----------------------------------------------------------------------------
+load("../data/e100.RData")
+barplot(e100, ylim = c(0, 7), width = 0.7, xlim = c(-0.5, 100.5),
+  names.arg = seq(along = e100), col = "darkolivegreen")
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+barplot(e100, ylim = c(0, 7), width = 0.7, xlim = c(-0.5, 100.5),
+  names.arg = seq(along = e100), col = "darkolivegreen")
+text(35, 7, adj = c(-0.05, 0.5), labels = "?", xpd = NA, col = "red",
+  cex = 1.25, font = 2)
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+1 - ppois(6, 0.5)
+ppois(6, 0.5, lower.tail = FALSE)
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+maxes = replicate(100000, {
+  max(rpois(100, 0.5))
+})
+table(maxes)
+
+```
+```{r}
+## -----------------------------------------------------------------------------
+mean( maxes >= 7 )
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+dmultinom(c(4, 2, 0, 0), prob = rep(1/4, 4))
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+pvec = rep(1/4, 4)
+t(rmultinom(1, prob = pvec, size = 8))
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+pvec = rep(1/4, 4)
+t(rmultinom(1, prob = pvec, size = 80))
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+pvec = rep(1/4, 4)
+t(rmultinom(8, prob = pvec, size = 1))
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+obsunder0 = rmultinom(1000, prob = pvec, size = 20)
+dim(obsunder0)
+obsunder0[, 1:11]
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+thep = unique(pvec); stopifnot(length(thep)==1, thep == 0.25)
+thep
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+expected0 = pvec * 20
+sum((obsunder0[, 1] - expected0)^2 / expected0)
+sum((obsunder0[, 2] - expected0)^2 / expected0)
+sum((obsunder0[, 3] - expected0)^2 / expected0)
+```
+
+```{r}
+(5-5)^2/5+(4-5)^2/5+(6-5)^2/5+(5-5)^2/5
+(4-5)^2/5+(6-5)^2/5+(6-5)^2/5+(4-5)^2/5
+(6-5)^2/5+(4-5)^2/5+(4-5)^2/5+(6-5)^2/5
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+stat = function(obsvd, exptd = 20 * pvec) {
+  sum((obsvd - exptd)^2 / exptd)
+}
+stat(obsunder0[, 1])
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+S0 = apply(obsunder0, 2, stat)
+summary(S0)
+```
+
+```{r}
+hist(S0, breaks = 25, col = "lavender", main = "")
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+q95 = quantile(S0, probs = 0.95)
+q95
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+## ## This was done to save this object for its reuse in Chapter 2.
+## save(S0, file = "../data/S0.RData")
+
+## -----------------------------------------------------------------------------
+pvecA = c(3/8, 1/4, 1/4, 1/8)
+observed = rmultinom(1000, prob = pvecA, size = 20)
+dim(observed)
+observed[, 1:7]
+```
+
+```{r}
+
+apply(observed, 1, mean)
+expectedA = pvecA * 20
+expectedA
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+stat(observed[, 1])
+S1 = apply(observed, 2, stat)
+q95 # can't reject the first observation, because the statistic is within the 95% percentile
+```
+
+
+```{r}
+sum(S1 > q95)
+power = mean(S1 > q95)
+power
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+#stopifnot(stat(observed[, 1]) < q95)
+
+```
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+dbinom(2, size = 10, prob = 0.3) # run size = 10, prob = 0.3 binomial distribution, the probability at 2
+pbinom(2, size = 10, prob = 0.3) # run size = 10, prob = 0.3 binomial distribution, the probability <= 2
+sum(dbinom(0:2, size = 10, prob = 0.3)) 
+
+```
+
+Whenever we note that we keep needing a certain sequence of commands, it’s good to put them into a function. The function body contains the instructions that we want to do over and over again, the function arguments take those things that we may want to vary. Write a function to compute the probability of having a maximum as big as `m` when looking across `n` Poisson variables with rate `lambda`.
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+poismax = function(lambda, n, m) {
+  epsilon = 1 - ppois(m - 1, lambda)
+  1 - exp( -n * epsilon)
+}
+poismax(lambda = 0.5, n = 100, m = 7)
+poismax(lambda = mean(e100), n = 100, m = 7)
+```
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+poismax = function(lambda, n = 100, m = 7) {
+  1 - exp( -n * (1 - ppois(m - 1, lambda)))
+}
+poismax(0.5)
+poismax(0.5, m = 9)
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+## if (!requireNamespace("BiocManager", quietly = TRUE))
+##     install.packages("BiocManager")
+## BiocManager::install(c("Biostrings", "BSgenome.Celegans.UCSC.ce2"))
+
+## -----------------------------------------------------------------------------
+library("BSgenome.Celegans.UCSC.ce2")
+Celegans
+
+```
+
+```{r}
+seqnames(Celegans)
+Celegans$chrM
+class(Celegans$chrM)
+length(Celegans$chrM)
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+library("Biostrings")
+lfM = letterFrequency(Celegans$chrM, letters=c("A", "C", "G", "T"))
+lfM
+sum(lfM)
+lfM / sum(lfM)
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+t(rmultinom(1, length(Celegans$chrM), p = rep(1/4, 4)))
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+length(Celegans$chrM) / 4
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+oestat = function(o, e) {
+  sum((o-e)^2 / e)
+}
+oe = oestat(o = lfM, e = length(Celegans$chrM) / 4)
+oe
+
+```
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+B = 10000
+n = length(Celegans$chrM)
+expected = rep(n / 4, 4)
+oenull = replicate(B,
+  oestat(e = expected, o = rmultinom(1, n, p = rep(1/4, 4))))
+
+
+## -----------------------------------------------------------------------------
+hist(oenull, breaks = 100, col = "skyblue", main = "")
+```
+```{r}
+q95 = quantile(oenull, probs = 0.95)
+q95
+```
+```{r}
+mean(oenull > 10)
+```
+
+
+```{r}
+
+?Distributions
+
+```
+
+For the Cauchy distribution see `dcauchy`.
+
+For the chi-squared distribution see `dchisq`.
+
+For the exponential distribution see `dexp`.
+
+For the F distribution see `df`.
+
+For the gamma distribution see `dgamma`.
+
+For the geometric distribution see `dgeom`. (This is also a special case of the negative binomial.)
+
+For the hypergeometric distribution see `dhyper`.
+
+For the log-normal distribution see `dlnorm`.
+
+For the multinomial distribution see `dmultinom`.
+
+For the negative binomial distribution see `dnbinom`.
+
+For the normal distribution see `dnorm`.
+
+For the Poisson distribution see `dpois`.
+
+For the Student's t distribution see `dt`.
+
+For the uniform distribution see `dunif`.
+
+For the Weibull distribution see `dweibull`.
+
+```{r}
+posiv = rpois(n=1000, lambda=3)
+mean(posiv)
+var(posiv)
+```
+
+

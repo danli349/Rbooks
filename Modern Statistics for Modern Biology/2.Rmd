@@ -1,0 +1,1186 @@
+---
+title: '2'
+output: html_document
+date: "2023-03-31"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 2  Statistical Modeling
+
+
+```{r}
+rpois(100, 0.5)
+```
+
+```{r}
+poismax = function(lambda, n, m) {
+  epsilon = 1 - ppois(m - 1, lambda)
+  1 - exp( -n * epsilon)
+}
+poismax(lambda = 0.5, n = 100, m = 7)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+load("../data/e100.RData")
+e99 = e100[-which.max(e100)]
+e100
+e99
+```
+
+```{r}
+which.max(e100)
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+barplot(table(e99), space = 0.8, col = "chartreuse4")
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+library("vcd")
+gf1 = goodfit( e99, "poisson")
+rootogram(gf1, xlab = "", rect_gp = gpar(fill = "chartreuse4"))
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+simp = rpois(100, lambda = 0.05)
+gf2 = goodfit(simp, "poisson")
+rootogram(gf2, xlab = "")
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+table(e100)
+
+```
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+table(rpois(100, 3))
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+counts  =  table(e100)
+stopifnot(identical(names(counts), c("0", "1", "2", "7")), all(counts==c(58, 34, 7, 1)))
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+prod(dpois(c(0, 1, 2, 7), lambda = 3) ^ (c(58, 34, 7, 1)))
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+prod(dpois(c(0, 1, 2, 7), lambda = 0.4) ^ (c(58, 34, 7, 1)))
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+prod(dpois(c(0, 1, 2, 7), lambda = 0) ^ (c(58, 34, 7, 1)))
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+loglikelihood  =  function(lambda, data = e100) {
+  sum(log(dpois(data, lambda)))
+}
+
+## -----------------------------------------------------------------------------
+lambdas = seq(0.05, 0.95, length = 100)
+loglik = vapply(lambdas, loglikelihood, numeric(1))
+plot(lambdas, loglik, type = "l", col = "red", ylab = "", lwd = 2,
+     xlab = expression(lambda))
+m0 = mean(e100)
+abline(v = m0, col = "blue", lwd = 2)
+abline(h = loglikelihood(m0), col = "purple", lwd = 2)
+```
+
+```{r}
+m0
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+gf  =  goodfit(e100, "poisson")
+names(gf)
+gf$par
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+cb  =  c(rep(0, 110), rep(1, 10))
+
+## -----------------------------------------------------------------------------
+table(cb)
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+mean(cb)
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+probs  =  seq(0, 0.3, by = 0.001)
+likelihood = dbinom(sum(cb), prob = probs, size = length(cb))
+plot(probs, likelihood, pch = 16, xlab = "probability of success",
+       ylab = "likelihood", cex=0.6)
+```
+```{r}
+probs[which.max(likelihood)]
+```
+
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+stopifnot(abs(probs[which.max(likelihood)]-1/12) < diff(probs[1:2]))
+
+```
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+loglikelihood = function(p, n = 300, y = 40) {
+  log(choose(n, y)) + y * log(p) + (n - y) * log(1 - p)
+}
+
+## -----------------------------------------------------------------------------
+p_seq = seq(0, 1, by = 0.001)
+plot(p_seq, loglikelihood(p_seq), xlab = "p", ylab = "log f(p|y)", type = "l")
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+library("Biostrings")
+staph = readDNAStringSet("../data/staphsequence.ffn.txt", "fasta")
+
+## -----------------------------------------------------------------------------
+staph[1]
+```
+The double square brackets `[[i]]` extract the sequence of the `i`-th gene as a DNAString, as opposed to the pair of single brackets `[i]`, which return a DNAStringSet with just a single DNAString in it. If you look at the length of `staph[1]`, it is `1`, whereas `staph[[1]]` has length `1362`.
+
+```{r}
+
+letterFrequency(staph[[1]], letters = "ACGT", OR = 0)
+
+```
+
+```{r}
+length(staph[1])
+length(staph[[1]])
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+letterFrq = vapply(staph, letterFrequency, FUN.VALUE = numeric(4),
+         letters = "ACGT", OR = 0)
+colnames(letterFrq) = paste0("gene", seq(along = staph))
+tab10 = letterFrq[, 1:10]
+tab10
+```
+
+```{r}
+
+computeProportions = function(x) { x/sum(x) }
+prop10 = apply(tab10, 2, computeProportions) # nucleotides Proportions in column
+round(prop10, digits = 2)
+```
+
+```{r}
+p0 = rowMeans(prop10) # nucleotides Proportions in all 10 genes
+p0
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+cs = colSums(tab10) # 10 genes length
+cs
+```
+
+```{r}
+
+expectedtab10 = outer(p0, cs, FUN = "*") # expected nucleotides Proportions if every gene has the same Proportion
+round(expectedtab10)
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+randomtab10 = sapply(cs, function(s) { rmultinom(1, s, p0) } )
+randomtab10
+all(colSums(randomtab10) == cs)
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+stopifnot(all(colSums(randomtab10) == cs))
+
+```
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+stat = function(obsvd, exptd) {
+   sum((obsvd - exptd)^2 / exptd)
+}
+B = 1000
+simulstat = replicate(B, {
+  randomtab10 = sapply(cs, function(s) { rmultinom(1, s, p0) })
+  stat(randomtab10, expectedtab10)
+})
+S1 = stat(tab10, expectedtab10)
+sum(simulstat >= S1)
+
+```
+```{r}
+length(simulstat)
+head(simulstat)
+```
+
+
+```{r}
+expectedtab10
+```
+
+```{r}
+randomtab10
+```
+
+```{r}
+
+hist(simulstat, col = "lavender", breaks = seq(0, 75, length.out=50))
+abline(v = S1, col = "red")
+abline(v = quantile(simulstat, probs = c(0.95, 0.99)),
+       col = c("darkgreen", "blue"), lty = 2)
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+stopifnot(max(simulstat)<75, S1<75)
+```
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+qs = ppoints(100)  #Generates the sequence of probability points 0.005 to 0.995
+quantile(simulstat, qs)
+```
+
+```{r}
+qchisq(qs, df = 30)
+```
+
+```{r}
+hist(rchisq(1000, df = 30), col = "lavender", breaks = 50)
+```
+
+```{r}
+quantile(qchisq(qs, df = 30), qs)
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+qqplot(qchisq(ppoints(B), df = 30), simulstat, main = "",
+  xlab = expression(chi[nu==30]^2), asp = 1, cex = 0.5, pch = 16)
+abline(a = 0, b = 1, col = "red")
+```
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+1 - pchisq(S1, df = 30)
+```
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+load("../data/ChargaffTable.RData")
+ChargaffTable
+
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+stopifnot(nrow(ChargaffTable) == 8)
+mycolors = c("chocolate", "aquamarine4", "cadetblue4", "coral3",
+            "chartreuse4","darkgoldenrod4","darkcyan","brown4")
+par(mfrow=c(2, 4), mai = c(0, 0.7, 0.7, 0))
+for (i in 1:8) {
+  cbp = barplot(ChargaffTable[i, ], horiz = TRUE, axes = FALSE, axisnames = FALSE, col = mycolors[i])
+  ax = axis(3, las = 2, labels = FALSE, col = mycolors[i], cex = 0.5, at = c(0, 10, 20))
+  mtext(side = 3, at = ax,  text = paste(ax), col = mycolors[i], line = 0, las = 1, cex = 0.9)
+  mtext(side = 2, at = cbp, text = colnames(ChargaffTable), col = mycolors[i], line = 0, las = 2, cex = 1)
+  title(paste(rownames(ChargaffTable)[i]), col = mycolors[i], cex = 1.1)
+}
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+statChf = function(x){
+  sum((x[, "C"] - x[, "G"])^2 + (x[, "A"] - x[, "T"])^2)
+}
+chfstat = statChf(ChargaffTable)
+chfstat
+```
+
+
+```{r}
+
+permstat = replicate(100000, {
+     permuted = t(apply(ChargaffTable, 1, sample))
+     colnames(permuted) = colnames(ChargaffTable)
+     statChf(permuted)
+})
+pChf = mean(permstat <= chfstat)
+pChf
+```
+
+```{r}
+hist(permstat, breaks = 100, main = "", col = "lavender")
+abline(v = chfstat, lwd = 2, col = "red")
+```
+```{r}
+
+
+## -----------------------------------------------------------------------------
+HairEyeColor[,, "Female"]
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+str(HairEyeColor)
+?HairEyeColor
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+load("../data/Deuteranopia.RData")
+Deuteranopia
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+test <- chisq.test(Deuteranopia)
+test
+```
+```{r}
+test$statistic # test statistic
+test$p.value # p-value
+test$observed
+test$expected
+```
+
+```{r}
+(19+2)/2
+(1981+1998)/2
+```
+```{r}
+# Yates' continuity correction is subtract 0.5 from the absolute value 
+(19-10.5-0.5)^2/10.5+(abs(2-10.5)-0.5)^2/10.5+(abs(1981-1989.5)-0.5)^2/1989.5+(1998-1989.5-0.5)^2/1989.5
+```
+
+
+```{r}
+test$method
+test$residuals
+```
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+library("HardyWeinberg")
+data("Mourant")
+Mourant[214:216,]
+```
+
+```{r}
+
+nMM = Mourant$MM[216]
+nMN = Mourant$MN[216]
+nNN = Mourant$NN[216]
+loglik = function(p, q = 1 - p) {
+  2 * nMM * log(p) + nMN * log(2*p*q) + 2 * nNN * log(q)
+}
+xv = seq(0.01, 0.99, by = 0.01)
+yv = loglik(xv)
+plot(x = xv, y = yv, type = "l", lwd = 2,
+     xlab = "p", ylab = "log-likelihood")
+imax = which.max(yv)
+abline(v = xv[imax], h = yv[imax], lwd = 1.5, col = "blue")
+abline(h = yv[imax], lwd = 1.5, col = "purple")
+```
+
+```{r}
+xv[imax]
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+phat  =  af(c(nMM, nMN, nNN))
+phat
+```
+
+```{r}
+
+pMM   =  phat^2
+qhat  =  1 - phat
+
+## -----------------------------------------------------------------------------
+pHW = c(MM = phat^2, MN = 2*phat*qhat, NN = qhat^2)
+sum(c(nMM, nMN, nNN)) * pHW
+```
+
+```{r}
+Mourant[, c("MM", "MN", "NN")][c(1, 69, 128, 148, 192),]
+as.matrix(Mourant[, c("MM", "MN", "NN")])[c(1, 69, 128, 148, 192),]
+```
+
+```{r}
+c("red", rep("purple", 4))
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+par(mai = rep(0.1, 4))
+pops = c(1, 69, 128, 148, 192)
+genotypeFrequencies = as.matrix(Mourant[, c("MM", "MN", "NN")])
+HWTernaryPlot(genotypeFrequencies[pops, ],
+        markerlab = Mourant$Country[pops],
+        alpha = 0.0001, curvecols = c("red", rep("purple", 4)),
+        mcex = 0.75, vertex.cex = 1)
+```
+```{r}
+
+
+## -----------------------------------------------------------------------------
+HWTernaryPlot(genotypeFrequencies[pops, ],
+              markerlab = Mourant$Country[pops],
+              curvecols = c("red", rep("purple", 4)),
+              alpha = 0.0001, mcex = 0.75, vertex.cex = 1)
+
+HWTernaryPlot(genotypeFrequencies[-pops, ], 
+              newframe = FALSE, alpha = 0.0001, cex = 0.5)
+```
+
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+newgf = round(genotypeFrequencies / 50)
+HWTernaryPlot(newgf[pops, ],
+              markerlab = Mourant$Country[pops],
+              curvecols = c("red", rep("purple", 4)),
+              alpha = 0.0001, mcex = 0.75, vertex.cex = 1)
+
+```
+```{r}
+
+## -----------------------------------------------------------------------------
+library("seqLogo")
+load("../data/kozak.RData")
+kozak
+pwm = makePWM(kozak)
+seqLogo(pwm, ic.scale = FALSE)
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+library("markovchain")
+library("igraph")
+sequence = toupper(c("a", "c", "a", "c", "g", "t", "t", "t", "t", "c", "c",
+                     "a", "c", "g", "t", "a", "c","c","c","a","a","a","t","a",
+                     "c","g","g","c","a","t","g","t","g","t","g","a","g","c","t","g"))
+mcFit   =  markovchainFit(data = sequence)
+mcFit
+
+
+```
+
+```{r}
+MCgraph =  markovchain:::.getNet(mcFit$estimate, round = TRUE)
+MCgraph
+```
+
+```{r}
+E(MCgraph)
+E(MCgraph)$weight
+```
+
+```{r}
+edgelab =  round(E(MCgraph)$weight / 100, 2)
+edgelab
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+par(mai=c(0,0,0,0))
+plot.igraph(MCgraph, edge.label = edgelab,
+       vertex.size = 40, xlim = c(-1, 1.25))
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+par(mai=c(0,0,0,0))
+plot.igraph(MCgraph, edge.label = edgelab,
+       vertex.size = 40, xlim = c(-1, 1.25))
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+haplo6 = read.table("../data/haplotype6.txt", header = TRUE)
+haplo6
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+with(haplo6, stopifnot(Individual[1] == "H1", DYS19[1] == 14, DXYS156Y[1] == 12))
+
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+dfbetas = data.frame(
+  p = rep(p_seq, 3),
+  dbeta = c(dbeta(p_seq,  10,  30),
+            dbeta(p_seq,  20,  60), 
+            dbeta(p_seq,  50, 150)),
+  pars = rep(c("Beta(10,30)", "Beta(20,60)", "Beta(50,150)"), each = length(p_seq)))
+library("ggplot2")
+ggplot(dfbetas) +
+  geom_line(aes(x = p, y = dbeta, colour = pars)) +
+  theme(legend.title = element_blank()) +
+  geom_vline(aes(xintercept = 0.25), colour = "#990000", linetype = "dashed") + # mean
+  geom_vline(aes(xintercept = (10-1)/(10+30-2)), colour = "#888800") # mode
+```
+
+```{r}
+data <- rbeta(100000, 50, 350)
+summary(data)
+hist(data, breaks = 100, col = "skyblue", main = "")
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+rp = rbeta(100000, 50, 350)
+y = vapply(rp, 
+           function(x) rbinom(1, prob = x, size = 300), 
+           integer(1))
+hist(y, breaks = 50, col = "orange", main = "", xlab = "")
+```
+
+```{r}
+
+
+
+## -----------------------------------------------------------------------------
+set.seed(0xbebe)
+y1 = vapply(rp, 
+            function(x) rbinom(1, prob = x, size = 300), 
+            integer(1))
+set.seed(0xbebe)
+y2 = rbinom(length(rp), rp, size = 300)
+stopifnot(identical(y1, y2))
+hist(y2, breaks = 50, col = "orange", main = "", xlab = "")
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+pPostEmp = rp[ y == 40 ]
+hist(pPostEmp, breaks = 40, col = "chartreuse4", main = "",
+  probability = TRUE, xlab = "posterior p")
+
+p_seq = seq(0, 1, by = 0.001)
+densPostTheory = dbeta(p_seq, 50 + 40, 350 + 260)
+lines(p_seq, densPostTheory, type = "l", lwd = 3)
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+mean(pPostEmp)
+dp = p_seq[2] - p_seq[1]
+dp
+sum(p_seq * densPostTheory * dp)
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+stopifnot(abs(mean(pPostEmp) - sum(p_seq * densPostTheory * dp)) < 1e-3)
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+pPostMC = rbeta(n = 100000, 90, 610)
+mean(pPostMC)
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+qqplot(pPostMC, pPostEmp, type = "l", asp = 1)
+abline(a = 0, b = 1, col = "blue")
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+densPost2 = dbeta(p_seq, 115, 735)
+mcPost2   = rbeta(1e6, 115, 735)
+sum(p_seq * densPost2 * dp)   # mean, by numeric integration
+mean(mcPost2)                 # mean by MC
+p_seq[which.max(densPost2)]   # MAP estimate
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+quantile(mcPost2, c(0.025, 0.975))
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+library("Biostrings")
+
+## -----------------------------------------------------------------------------
+## GENETIC_CODE
+## IUPAC_CODE_MAP
+## vignette(package = "Biostrings")
+## vignette("BiostringsQuickOverview", package = "Biostrings")
+
+## -----------------------------------------------------------------------------
+GENETIC_CODE
+IUPAC_CODE_MAP
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+library("BSgenome")
+ag = available.genomes()
+length(ag)
+ag[1:2]
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+library("BSgenome.Ecoli.NCBI.20080805")
+Ecoli
+shineDalgarno = "AGGAGGT"
+ecoli = Ecoli$NC_010473
+ecoli
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+window = 50000
+starts = seq(1, length(ecoli) - window, by = window)
+length(ecoli) - window
+head(starts)
+
+```
+
+```{r}
+seq_along(starts)
+```
+
+```{r}
+starts[93]
+```
+
+```{r}
+ends   = starts + window - 1
+head(ends)
+seq_along(ends)
+```
+
+```{r}
+ends[93]
+```
+
+```{r}
+
+```
+
+```{r}
+numMatches = vapply(seq_along(starts), function(i) {
+  countPattern(shineDalgarno, ecoli[starts[i]:ends[i]],
+               max.mismatch = 0)
+  }, numeric(1))
+table(numMatches)
+```
+
+```{r}
+mean(numMatches) # the maximum likelihood estimate of poisson lambda is the mean
+```
+
+
+```{r}
+dpois(c(0, 1, 2, 3, 4), lambda = 0.6989247)*length(numMatches) # the prediction of poisson distribution
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+library("vcd")
+gf = goodfit(numMatches, "poisson")
+summary(gf)
+```
+
+```{r}
+gf$observed
+```
+
+```{r}
+gf$count
+gf$df
+gf$method
+gf$fitted
+gf$par
+```
+
+```{r}
+distplot(numMatches, type = "poisson")
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+sdMatches = matchPattern(shineDalgarno, ecoli, max.mismatch = 0)
+head(sdMatches)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+betweenmotifs = gaps(sdMatches)
+head(betweenmotifs)
+length(betweenmotifs)
+```
+
+```{r}
+head(width(betweenmotifs))
+mean(width(betweenmotifs))
+table(width(betweenmotifs))
+```
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+library("Renext")
+expplot(width(betweenmotifs), rate = 1/mean(width(betweenmotifs)),
+        labels = "fit")
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+## gofExp.test(width(betweenmotifs))
+
+## -----------------------------------------------------------------------------
+library("BSgenome.Hsapiens.UCSC.hg19")
+chr8  =  Hsapiens$chr8
+CpGtab = read.table("../data/model-based-cpg-islands-hg19.txt",
+                    header = TRUE)
+nrow(CpGtab)
+```
+
+```{r}
+head(CpGtab)
+```
+
+```{r}
+irCpG = with(dplyr::filter(CpGtab, chr == "chr8"),
+         IRanges(start = start, end = end))
+head(irCpG)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+grCpG = GRanges(ranges = irCpG, seqnames = "chr8", strand = "+")
+genome(grCpG) = "hg19"
+head(grCpG)
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+library("Gviz")
+ideo = IdeogramTrack(genome = "hg19", chromosome = "chr8")
+plotTracks(
+  list(GenomeAxisTrack(),
+    AnnotationTrack(grCpG, name = "CpG"), ideo),
+    from = 2200000, to = 5800000,
+    shape = "box", fill = "#006400", stacking = "dense")
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+CGIview    = Views(unmasked(Hsapiens$chr8), irCpG)
+head(CGIview)
+NonCGIview = Views(unmasked(Hsapiens$chr8), gaps(irCpG))
+head(NonCGIview)
+```
+
+
+```{r}
+head(DNAStringSet(CGIview))
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+seqCGI      = as(CGIview, "DNAStringSet")
+head(seqCGI)
+length(seqCGI)
+seqNonCGI   = as(NonCGIview, "DNAStringSet")
+head(seqNonCGI)
+length(seqNonCGI)
+```
+
+```{r}
+dinucCpG    = sapply(seqCGI, dinucleotideFrequency)
+dim(dinucCpG)
+dinucCpG[,1]
+dinucNonCpG = sapply(seqNonCGI, dinucleotideFrequency)
+dim(dinucNonCpG)
+dinucNonCpG[, 1]
+```
+
+```{r}
+NonICounts = rowSums(dinucNonCpG)
+NonICounts
+IslCounts  = rowSums(dinucCpG)
+IslCounts
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+TI  = matrix(IslCounts, ncol = 4, byrow = TRUE)
+TnI = matrix(NonICounts, ncol = 4, byrow = TRUE)
+dimnames(TI) = dimnames(TnI) =
+  list(c("A", "C", "G", "T"), c("A", "C", "G", "T"))
+head(TI)
+```
+
+```{r}
+head(TnI)
+```
+
+
+```{r}
+## -----------------------------------------------------------------------------
+MI = TI /rowSums(TI)
+MI
+MN = TnI / rowSums(TnI)
+MN
+
+```
+
+The transitions are different. For instance, the transitions from C to A and T to A for in the islands (MI) transition matrix seem very different (0.201 versus 0.098).
+
+
+```{r}
+alphabetFrequency(seqCGI, baseOnly = TRUE, collapse = TRUE)
+```
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+freqIsl = alphabetFrequency(seqCGI, baseOnly = TRUE, collapse = TRUE)[1:4]
+freqIsl
+freqIsl / sum(freqIsl)
+
+```
+
+```{r}
+freqNon = alphabetFrequency(seqNonCGI, baseOnly = TRUE, collapse = TRUE)[1:4]
+freqNon
+freqNon / sum(freqNon)
+```
+This shows an inverse pattern: in the CpG islands, C and G have frequencies around 0.32, whereas in the non-CpG islands, we have A and T that have frequencies around 0.30.
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+alpha = log((freqIsl/sum(freqIsl)) / (freqNon/sum(freqNon)))
+alpha
+beta  = log(MI / MN)
+beta
+```
+
+```{r}
+s = unlist(strsplit("ACGTTATACTACG", ""))
+s
+```
+
+```{r}
+beta[s[2-1], s[2]]
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+x = "ACGTTATACTACG"
+scorefun = function(x) {
+  s = unlist(strsplit(x, ""))
+  score = alpha[s[1]]
+  if (length(s) >= 2)
+    for (j in 2:length(s))
+      score = score + beta[s[j-1], s[j]]
+  score
+}
+scorefun(x)
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+generateRandomScores = function(s, len = 100, B = 1000) {
+  alphFreq = alphabetFrequency(s)
+  isGoodSeq = rowSums(alphFreq[, 5:ncol(alphFreq)]) == 0
+  s = s[isGoodSeq]
+  slen = sapply(s, length)
+  prob = pmax(slen - len, 0)
+  prob = prob / sum(prob)
+  idx  = sample(length(s), B, replace = TRUE, prob = prob)
+  ssmp = s[idx]
+  start = sapply(ssmp, function(x) sample(length(x) - len, 1))
+  scores = sapply(seq_len(B), function(i)
+    scorefun(as.character(ssmp[[i]][start[i]+(1:len)]))
+  )
+  scores / len
+}
+scoresCGI    = generateRandomScores(seqCGI)
+scoresNonCGI = generateRandomScores(seqNonCGI)
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+rgs = range(c(scoresCGI, scoresNonCGI))
+rgs
+```
+
+```{r}
+
+br = seq(rgs[1], rgs[2], length.out = 50)
+h1 = hist(scoresCGI,    breaks = br, plot = FALSE)
+h2 = hist(scoresNonCGI, breaks = br, plot = FALSE)
+plot(h1, col = rgb(0, 0, 1, 1/4), xlim = c(-0.5, 0.5), ylim=c(0,120))
+plot(h2, col = rgb(1, 0, 0, 1/4), add = TRUE)
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+## ###This is for provenance reasons, keep track of how the data
+## ###were generated for the EM exercise in Chapter 4.
+## Mdata=c(scoresCGI,scoresNonCGI)
+## MM1=sample(Mdata[1:1000],800)
+## MM2=sample(Mdata[1001:2000],1000)
+## Myst=c(MM1,MM2);names(Myst)=NULL
+## saveRDS(c(MM1,MM2),"../data/Myst.rds")
+## ###True value of m1,m2,s1 and s2
+## ###
+
+## -----------------------------------------------------------------------------
+stopifnot(max(h1$counts) < 120, max(h2$counts) < 120,
+          h1$breaks[1] >= br[1], h1$breaks[length(h1$breaks)] <= br[length(br)],
+          h2$breaks[1] >= br[1], h2$breaks[length(h2$breaks)] <= br[length(br)])
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+mtb = read.table("../data/M_tuberculosis.txt", header = TRUE)
+head(mtb, n = 4)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+Gly  =  mtb[ mtb$AmAcid == "Gly", "Number"]
+Gly
+Gly/sum(Gly)
+```
+
+
+```{r}
+dim(mtb)
+```
+
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+pro  =  mtb[ mtb$AmAcid == "Pro", "Number"]
+pro
+pro/sum(pro)
+
+```
+
+```{r}
+table(mtb$AmAcid)
+```
+
+```{r}
+table(mtb$Codon)
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+staph = readDNAStringSet("../data/staphsequence.ffn.txt", "fasta")
+
+## -----------------------------------------------------------------------------
+staph[1:3, ]
+staph
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+letterFrequency(staph[[1]], letters = "ACGT", OR = 0)
+GCstaph = data.frame(
+  ID = names(staph),
+  GC = rowSums(alphabetFrequency(staph)[, 2:3] / width(staph)) * 100
+)
+
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+window = 100
+gc = rowSums( letterFrequencyInSlidingView(staph[[364]], window,
+      c("G","C")))/window
+plot(x = seq(along = gc), y = gc, type = "l")
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+plot(x = seq(along = gc), y = gc, type = "l")
+lines(lowess(x = seq(along = gc), y = gc, f = 0.2), col = 2)
+```
+
+```{r}
+
+
+
+## -----------------------------------------------------------------------------
+dfbetas = data.frame(
+  p = rep(p_seq, 5),
+  dbeta = c(dbeta(p_seq, 0.5, 0.5), 
+            dbeta(p_seq,   1,   1), 
+            dbeta(p_seq,  10,  30),
+            dbeta(p_seq,  20,  60), 
+            dbeta(p_seq,  50, 150)),
+  pars = rep(c("Beta(0.5,0.5)", "U(0,1)=Beta(1,1)", 
+               "Beta(10,30)", "Beta(20,60)", 
+               "Beta(50,150)"), each = length(p_seq)))
+ggplot(dfbetas) +
+  geom_line(aes(x = p, y = dbeta, colour = pars)) +
+  theme(legend.title = element_blank()) +
+  geom_vline(aes(xintercept = 0.25), colour = "#990000", linetype = "dashed")
+
+```
+

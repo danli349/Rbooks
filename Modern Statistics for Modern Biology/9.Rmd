@@ -1,0 +1,1156 @@
+---
+title: '9'
+output: html_document
+date: "2023-04-16"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 9  Multivariate methods for heterogeneous data 
+
+```{r}
+## -----------------------------------------------------------------------------
+library("pheatmap")
+dir(system.file("extdata", package = "MSMB"))
+```
+
+```{r}
+dir(system.file("images", package = "MSMB"))
+```
+
+
+```{r}
+dir(system.file("data", package = "MSMB"))
+```
+
+```{r}
+dir(system.file("scripts", package = "MSMB"))
+```
+```{r}
+data("ukraine_dists", package = "MSMB")
+as.matrix(ukraine_dists)[1:4, 1:4]
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+pheatmap(as.matrix(ukraine_dists), 
+  color = colorRampPalette(c("#0057b7", "#ffd700"))(50),
+  breaks = seq(0, max(ukraine_dists)^(1/2), length.out = 51)^2,
+  treeheight_row = 10, treeheight_col = 10)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+pheatmap(as.matrix(ukraine_dists), 
+  color = colorRampPalette(c("blue","white", "red"))(50),
+  breaks = seq(0, max(ukraine_dists)^(1/2), length.out = 51)^2,
+  treeheight_row = 10, treeheight_col = 10)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+ukraine_mds = cmdscale(ukraine_dists, eig = TRUE)
+ukraine_mds
+```
+
+```{r}
+seq(along = ukraine_mds$eig)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+library("dplyr")
+library("ggplot2")
+plotscree = function(x, m = length(x$eig)) {
+  ggplot(tibble(eig = x$eig[seq_len(m)], k = seq(along = eig)),
+    aes(x = k, y = eig)) + theme_minimal() +
+    scale_x_discrete("k", limits = as.factor(seq_len(m))) + 
+    geom_bar(stat = "identity", width = 0.5, fill = "#ffd700", col = "#0057b7")
+}
+
+## -----------------------------------------------------------------------------
+plotscree(ukraine_mds, m = 4)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+ukraine_mds$eig |> signif(3)
+plotscree(ukraine_mds)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+stopifnot(any(ukraine_mds$eig < 0))
+
+## -----------------------------------------------------------------------------
+ukraine_mds_df = tibble(
+  PCo1 = ukraine_mds$points[, 1],
+  PCo2 = ukraine_mds$points[, 2],
+  labs = rownames(ukraine_mds$points)
+)
+if (with(ukraine_mds_df, labs[which.max(PCo1)] != "Luhansk"))
+  ukraine_mds_df$PCo1 = -ukraine_mds_df$PCo1
+if (with(ukraine_mds_df, labs[which.max(PCo2)] != "Sevastopol"))
+  ukraine_mds_df$PCo2 = -ukraine_mds_df$PCo2
+if(with(ukraine_mds_df,
+     labs[which.max(PCo1)] != "Luhansk" ||
+     labs[which.max(PCo2)] != "Sevastopol"))
+  stop("There is an error with 'ukraine_mds_df'.")
+library("ggrepel")
+g = ggplot(ukraine_mds_df, aes(x = PCo1, y = PCo2, label = labs)) +
+  geom_point() + geom_text_repel(col = "#0057b7") + coord_fixed() 
+g
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+g %+% mutate(ukraine_mds_df, PCo1 = PCo1, PCo2 = -PCo2)
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+data("ukraine_coords", package = "MSMB")
+print.data.frame(ukraine_coords[1:4,  c("city", "lat", "lon")])
+```
+
+```{r}
+ggplot(ukraine_coords, aes(x = lon, y = lat, label = city)) +
+  geom_point() + geom_text_repel(col = "#0057b7")
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+earthradius = 6371
+
+## -----------------------------------------------------------------------------
+## library("sf")
+## library("rnaturalearth")
+## library("rnaturalearthdata")
+## world = ne_countries(scale = "medium", returnclass = "sf")
+## ggplot() +
+##   geom_sf(data = world,
+##           fill = ifelse(world$geounit == "Ukraine", "#ffd700", "#f0f0f0")) +
+##   coord_sf(xlim = range(ukraine_coords$lon) + c(-0.5, + 2),
+##            ylim = range(ukraine_coords$lat) + c(-0.5, + 1)) +
+##   geom_point(aes(x = lon, y = lat), data = ukraine_coords) +
+##   geom_text_repel(aes(x = lon, y = lat, label = city),
+##                   color = "#0057b7", data = ukraine_coords)
+```
+
+
+```{r}
+## -----------------------------------------------------------------------------
+library("sf")
+library("rnaturalearth")
+library("rnaturalearthdata")
+world = ne_countries(scale = "medium", returnclass = "sf")
+ggplot() + 
+  geom_sf(data = world, 
+          fill = ifelse(world$geounit == "Ukraine", "#ffd700", "#f0f0f0")) +
+  coord_sf(xlim = range(ukraine_coords$lon) + c(-0.5, + 2), 
+           ylim = range(ukraine_coords$lat) + c(-0.5, + 1)) +
+  geom_point(aes(x = lon, y = lat), data = ukraine_coords) + 
+  geom_text_repel(aes(x = lon, y = lat, label = city), 
+                  color = "#0057b7", data = ukraine_coords)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+stopifnot(48 == round(mean(range(ukraine_coords$lat))))
+
+## -----------------------------------------------------------------------------
+X = with(ukraine_coords, cbind(lon, lat * cos(48)))
+DdotD = as.matrix(dist(X)^2)
+DdotD
+
+```
+
+```{r}
+apply(X,2,mean)
+X
+sweep(X,2,apply(X,2,mean)) # Return an array obtained from an input array by sweeping out a summary statistic.
+```
+
+```{r}
+n=4
+diag(rep(1,n))-(1/n)
+matrix(1, nrow = n, ncol = n)
+diag(rep(1,n))-(1/n) * matrix(1, nrow = n, ncol = n)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+n = nrow(X)
+H = diag(rep(1,n))-(1/n) * matrix(1, nrow = n, ncol = n)
+Xc = sweep(X,2,apply(X,2,mean))
+Xc[1:2, ]
+HX = H %*% X
+HX[1:2, ]
+apply(HX, 2, mean)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+B0 = H  %*% DdotD %*% H
+B2 = HX %*% t(HX)
+B2[1:3, 1:3] / B0[1:3, 1:3]
+max(abs(-0.5 * B0 - B2))
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+ekm = read.table("../data/ekman.txt", header=TRUE)
+rownames(ekm) = colnames(ekm)
+disekm = 1 - ekm - diag(1, ncol(ekm))
+disekm[1:5, 1:5]
+disekm = as.dist(disekm)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+mdsekm = cmdscale(disekm, eig = TRUE)
+plotscree(mdsekm)
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+dfekm = mdsekm$points[, 1:2] |>
+  `colnames<-`(paste0("MDS", 1:2)) |>
+  as_tibble() |>
+  mutate(
+    name = rownames(ekm),
+    rgb = photobiology::w_length2rgb(as.numeric(sub("w", "", name))))
+ggplot(dfekm, aes(x = MDS1, y = MDS2)) +
+  geom_point(col = dfekm$rgb, size = 4) +
+  geom_text_repel(aes(label = name)) + coord_fixed()
+```
+
+```{r echo=FALSE,message=FALSE,results='hide'}
+## -----------------------------------------------------------------------------
+library("vegan")
+nmds.stress = function(x, sim = 100, kmax = 4) {
+  sapply(seq_len(kmax), function(k)
+    replicate(sim, metaMDS(x, k = k, autotransform = FALSE)$stress))
+}
+stress = nmds.stress(disekm, sim = 100)
+```
+
+```{r}
+dim(stress)
+stress
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+dfstr = reshape2::melt(stress, varnames = c("replicate","dimensions"))
+dfstr
+
+
+```
+
+```{r}
+library("ggplot2")
+ggplot(dfstr, aes(y = value, x = dimensions, group = dimensions)) +
+  geom_boxplot()
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+nmdsk2 = metaMDS(disekm, k = 2, autotransform = FALSE)
+```
+
+```{r}
+nmdsk2
+nmdsk2$points
+```
+
+```{r}
+stressplot(nmdsk2, pch = 20)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+ggplot(dfekm, aes(x = MDS1, y = MDS2)) +
+  geom_point(col = dfekm$rgb, size = 4) +
+  geom_text_repel(aes(label = name)) + coord_fixed()
+```
+
+```{r}
+  
+nmdsk2$points[, 1:2] |> 
+  `colnames<-`(paste0("NmMDS", 1:2)) |>
+  as_tibble() |> 
+  bind_cols(dplyr::select(dfekm, rgb, name)) |>
+  ggplot(aes(x = NmMDS1, y = NmMDS2)) +
+    geom_point(col = dfekm$rgb, size = 4) +
+    geom_text_repel(aes(label = name))
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+IBDchip = readRDS("../data/vsn28Exprd.rds")
+library("ade4")
+library("factoextra")
+library("sva")
+
+## -----------------------------------------------------------------------------
+class(IBDchip)
+dim(IBDchip)
+tail(IBDchip[,1:3])
+table(IBDchip[nrow(IBDchip), ])
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+assayIBD = IBDchip[-nrow(IBDchip), ]
+day      = factor(IBDchip[nrow(IBDchip), ])
+day
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+rankthreshPCA = function(x, threshold = 3000) {
+  ranksM = apply(x, 2, rank)
+  ranksM[ranksM < threshold] = threshold
+  ranksM = threshold - ranksM
+  dudi.pca(t(ranksM), scannf = FALSE, nf = 2)
+}
+pcaDay12 = rankthreshPCA(assayIBD[, day != 3])
+pcaDay12
+
+```
+
+```{r}
+fviz_eig(pcaDay12, bar_width = 0.6) + ggtitle("")
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+day12 = day[ day!=3 ]
+rtPCA1 = fviz(pcaDay12, element = "ind", axes = c(1, 2), geom = c("point", "text"),
+  habillage = day12, repel = TRUE, palette = "Dark2",
+  addEllipses = TRUE, ellipse.type = "convex") + ggtitle("") +
+  coord_fixed()
+rtPCA1
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+pcaDay123 = rankthreshPCA(assayIBD)
+fviz(pcaDay123, element = "ind", axes = c(1, 2), geom = c("point", "text"),
+  habillage = day, repel = TRUE, palette = "Dark2",
+  addEllipses = TRUE, ellipse.type = "convex") + 
+  ggtitle("") + coord_fixed()
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+rtPCA1
+fviz(pcaDay123, element="ind", axes=c(1,2), geom=c("point","text"),
+  habillage = day, repel=TRUE, palette = "Dark2",
+  addEllipses = TRUE, ellipse.type = "convex") + ggtitle("") +
+  coord_fixed()
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+fviz_pca_ind(pcaDay123, habillage = day, labelsize = 3,
+  palette = "Dark2", addEllipses = TRUE, ellipse.level = 0.69)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+fviz_eig(pcaDay123, bar_width=0.6) + ggtitle("")
+
+```
+```{r}
+
+model0 = model.matrix(~1, day)
+model0
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+
+combatIBD = ComBat(dat = assayIBD, batch = day, mod = model0)
+pcaDayBatRM = rankthreshPCA(combatIBD)
+fviz(pcaDayBatRM, element = "ind", geom = c("point", "text"),
+  habillage = day, repel=TRUE, palette = "Dark2", addEllipses = TRUE,
+  ellipse.type = "convex", axes =c(1,2)) + coord_fixed() + ggtitle("")
+```
+
+```{r}
+library("SummarizedExperiment")
+colnames(IBDchip)
+treatment  = factor(ifelse(grepl("Cntr|^C", colnames(IBDchip)), "CTL", "IBS"))
+treatment
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+
+sampledata = DataFrame(day = day, treatment = treatment)
+chipse = SummarizedExperiment(assays  = list(abundance = assayIBD),
+                              colData = sampledata)
+
+## -----------------------------------------------------------------------------
+# check whether the 'grep'ed treatment status agree with
+# a manual 'hardcoded' version provided by Susan previously.
+stopifnot(identical(chipse$treatment, factor(c("IBS", "CTL")[
+  c(1,1,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1)])))
+
+## -----------------------------------------------------------------------------
+chipse[, day == 2]
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+corese = readRDS("../data/normse.rds")
+corese
+```
+
+```{r}
+assays(corese)
+names(assays(corese))
+
+```
+
+```{r}
+dim(assays(corese)$counts)
+dim(assays(corese)$normalizedValues)
+dim(assays(corese)$residuals)
+```
+
+```{r}
+head(colData(corese))
+```
+
+```{r}
+norm = assays(corese)$normalizedValues
+
+## -----------------------------------------------------------------------------
+length(unique(colData(corese)$Batch))
+
+dim(norm)   #1000 genes 747 samples
+rownames(norm)[1:10]
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+respca = dudi.pca(t(norm), nf = 3, scannf = FALSE) # dudi.pca use samples as rows to cluster rows
+plotscree(respca, 15)
+PCS = respca$li[, 1:3]
+
+## -----------------------------------------------------------------------------
+library("RColorBrewer")
+publishedClusters = colData(corese)[, "publishedClusters"]
+batch = colData(corese)$Batch
+col_clus = c(
+  "transparent", "#1B9E77", "antiquewhite2", "cyan", 
+  "#E7298A", "#A6CEE3", "#666666", "#E6AB02", "#FFED6F", 
+  "darkorchid2", "#B3DE69", "#FF7F00", "#A6761D", "#1F78B4")
+names(col_clus) = sort(unique(publishedClusters))
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+library("rgl")
+batch = colData(corese)$Batch
+plot3d(PCS,aspect=sqrt(c(84,24,20)),col=col_clus[batch])
+plot3d(PCS,aspect=sqrt(c(84,24,20)),
+col = col_clus[as.character(publishedClusters)])
+
+
+## -----------------------------------------------------------------------------
+HIV <- data.frame(
+  Patient = c('AHX112', 'AHX717', 'AHX543'), 
+  Mut1 = c(0, 1, 1),
+  Mut2 = c(0, 0, 0),
+  Mut3 = c(0, 1, 0),
+  '...' = rep(' ', 3))
+knitr::kable(HIV, format = 'html')
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+crossHIV <- data.frame(
+  Patient = c('Mut1', 'Mut2', 'Mut3'), 
+  Mut1 = c(853, 29, 10),
+  Mut2 = c(29, 853, 52),
+  Mut3 = c(10, 52, 853),
+  '...' = rep(' ', 3))
+knitr::kable(crossHIV, format = 'html')
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+cooc = read.delim2("../data/coccurHIV.txt", header = TRUE, sep = ",")
+cooc[1:4, 1:11]
+```
+
+```{r}
+
+HIVca = dudi.coa(cooc, nf = 4, scannf = FALSE)
+fviz_eig(HIVca, geom = "bar", bar_width = 0.6) + ggtitle("")
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+library("rgl")
+CA1=HIVca$li[,1];CA2=HIVca$li[,2];CA3=HIVca$li[,3]
+plot3d(CA1,CA2,CA3,aspect=FALSE,col="purple")
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+fviz_ca_row(HIVca,axes = c(1, 2),geom="text", col.row="purple",
+  labelsize=3)+ggtitle("") + xlim(-0.55, 1.7) + ylim(-0.53,1.1) +
+  theme_bw() +  coord_fixed()
+```
+
+```{r}
+fviz_ca_row(HIVca,axes = c(1, 3), geom="text",col.row="purple",
+    labelsize=3)+ggtitle("")+ xlim(-0.55, 1.7)+ylim(-0.5,0.6) +
+    theme_bw() + coord_fixed()
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+fviz_ca_row(HIVca, axes=c(1, 3), geom="text", col.row="purple", labelsize=3) +
+  ggtitle("") + theme_minimal() + coord_fixed()
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+HairEyeColor
+HairColor = HairEyeColor[,,2]
+```
+
+```{r}
+HairColor
+```
+
+```{r}
+chisq.test(HairColor)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+knitr::kable(HairColor, format = 'html')
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+rowsums = as.matrix(apply(HairColor, 1, sum))
+rowsums
+```
+
+```{r}
+
+colsums = as.matrix(apply(HairColor, 2, sum))
+t(colsums)
+HCexp = rowsums %*%t (colsums) / sum(colsums)
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+mosaicplot(HCexp, shade=TRUE, las=1, type="pearson", cex.axis=0.7, main="")
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+sum((HairColor  - HCexp)^2/HCexp)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+round(t(HairColor-HCexp))
+library("vcd")
+mosaicplot(HairColor, shade=TRUE, las=1, type="pearson", cex.axis=0.7, main="")
+
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+HC = as.data.frame.matrix(HairColor)
+coaHC = dudi.coa(HC,scannf=FALSE,nf=2)
+round(coaHC$eig[1:3]/sum(coaHC$eig)*100)
+
+```
+
+```{r}
+fviz_ca_biplot(coaHC, repel=TRUE, col.col="brown", col.row="purple") +
+  ggtitle("") + ylim(c(-0.5,0.5))
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+library("vegan")
+res.ca = vegan::cca(HairColor)
+plot(res.ca, scaling=3)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+load("../data/lakes.RData")
+dim(lakelike)
+lakelike[1:3,1:8]
+
+```
+
+```{r}
+reslake=dudi.coa(lakelike,scannf=FALSE,nf=2) # dudi.coa: correspondence analysis among the rows
+reslake
+```
+
+```{r}
+length(reslake$eig)
+```
+
+```{r}
+round(reslake$eig[1:8]/sum(reslake$eig),2)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+fviz_ca_row(reslake,repel=TRUE)+ggtitle("")+ylim(c(-0.55,1.7))
+
+```
+
+```{r}
+fviz_ca_biplot(reslake,repel=TRUE)+ggtitle("")+ylim(c(-0.55,1.7))
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+## # Provenance tracking, keep this for the record:
+## Nor = read.csv("../data/nbt.3154-S3.csv",row.names=1)
+## dim(Nor)
+## blom = as.matrix(Nor)
+## desc1=unlist(strsplit(rownames(blom),"_"))
+## desc=desc1[seq(1,7867,2)]
+## gr4sfg=which(substr(rownames(blom),1,5)=="4SFGA")
+## gr4sf=which(substr(rownames(blom),1,4)=="4SGA")
+## gr1=which(substr(rownames(blom),1,2)=="PS")
+## gr2=which(substr(rownames(blom),1,2)=="NP")
+## gr3=which(substr(rownames(blom),1,2)=="HF")
+## colscells=c("blue","green","orange","red","purple")
+## colnb=rep(0,3934)
+## colnb[gr1]=1
+## colnb[gr2]=2
+## colnb[gr3]=3
+## colnb[gr4sf]=4
+## colnb[gr4sfg]=5
+## typesort=rep(0,3934)
+## typesort[ nchar(desc) < 5 & substr(rownames(blom), 3, 3) == "A"] = "sortA"
+## typesort[ nchar(desc) < 5 & substr(rownames(blom), 3, 3) == "B"] = "sortB"
+## typesort[ nchar(desc) >= 5 ] = "sortA"
+## ftable(typesort)
+## celltypes=as.factor(c("PS","NP","HF","4SG","4SGF-")[colnb])
+## cellcol = colscells[colnb]
+## colCells = DataFrame(celltypes=celltypes, cellcol=colscells[colnb])
+## Moignard= SummarizedExperiment(assays=list(assayCells = blom), rowData=colCells)
+## saveRDS(Moignard,file="../data/Moignard.rds")
+
+## -----------------------------------------------------------------------------
+Moignard = readRDS("../data/Moignard.rds")
+Moignard
+```
+
+```{r}
+cellt = rowData(Moignard)$celltypes
+cellt[1:10]
+table(cellt) # five populations from between embryonic days E7.0 and E8.25.
+```
+
+```{r}
+colsn = c("red", "purple", "orange", "green", "blue")
+blom = assay(Moignard)
+dim(blom) #3934 cells and 46 genes
+blom[1,]
+```
+
+```{r}
+dist2n.euclid = dist(blom)
+length(dist2n.euclid)
+dim(as.matrix(dist2n.euclid))
+```
+
+```{r}
+(3934*3934-3934)/2
+```
+
+```{r}
+
+dist1n.l1     = dist(blom, "manhattan")
+
+## -----------------------------------------------------------------------------
+ce1Mds = cmdscale(dist1n.l1,     k = 20, eig = TRUE)
+ce2Mds = cmdscale(dist2n.euclid, k = 20, eig = TRUE)
+perc1  = round(100*sum(ce1Mds$eig[1:2])/sum(ce1Mds$eig))
+perc2  = round(100*sum(ce2Mds$eig[1:2])/sum(ce2Mds$eig))
+
+## -----------------------------------------------------------------------------
+plotscree(ce1Mds, m = 4)
+plotscree(ce2Mds, m = 4)
+
+
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+c1mds = ce1Mds$points[, 1:2] |>
+        `colnames<-`(paste0("L1_PCo", 1:2)) |>
+        as_tibble()
+ggplot(c1mds, aes(x = L1_PCo1, y = L1_PCo2, color = cellt)) +
+  geom_point(aes(color = cellt), alpha = 0.6) +
+  scale_colour_manual(values = colsn) + guides(color = "none")
+```
+
+
+```{r}
+c2mds = ce2Mds$points[, 1:2] |>
+        `colnames<-`(paste0("L2_PCo", 1:2)) |>
+        as_tibble()
+ggplot(c2mds, aes(x = L2_PCo1, y = L2_PCo2, color = cellt)) +
+  geom_point(aes(color = cellt), alpha = 0.6) +
+   scale_colour_manual(values = colsn) + guides(color = "none")
+```
+
+
+```{r}
+## -----------------------------------------------------------------------------
+## Hack from https://stackoverflow.com/questions/12041042/how-to-plot-just-the-legends-in-ggplot2
+ggpcolor = ggplot(c1mds,aes(x=L1_PCo1,y=L1_PCo2, color = cellt)) +
+  geom_point(aes(color = cellt), alpha = 0.6) +
+  scale_colour_manual(values=colsn, name = "cell type")
+g_legend = function(a) {
+     gt = ggplot_gtable(ggplot_build(a))
+     leg = which(sapply(gt$grobs, function(x) x$name) == "guide-box")
+     gt$grobs[[leg]]
+}
+grid.draw(g_legend(ggpcolor))
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+library("Rtsne")
+restsne = Rtsne(blom, dims = 2, perplexity = 30, verbose = FALSE,
+                max_iter = 900)
+dftsne = restsne$Y[, 1:2] |>
+         `colnames<-`(paste0("axis", 1:2)) |>
+         as_tibble()
+ggplot(dftsne,aes(x = axis1, y = axis2, color = cellt)) +
+  geom_point(aes(color = cellt), alpha = 0.6) +
+   scale_color_manual(values = colsn) + guides(color = "none")
+restsne3 = Rtsne(blom, dims = 3, perplexity = 30, verbose = FALSE,
+                 max_iter = 900)
+dftsne3 = restsne3$Y[, 1:3] |>
+          `colnames<-`(paste0("axis", 1:3)) |> 
+          as_tibble()
+ggplot(dftsne3,aes(x = axis3, y = axis2, group = cellt)) +
+      geom_point(aes(color = cellt), alpha = 0.6) +
+      scale_colour_manual(values = colsn) + guides(color = "none")
+```
+
+
+```{r}
+## -----------------------------------------------------------------------------
+ukraine_tsne = Rtsne(ukraine_dists, is_distance = TRUE, perplexity = 8)
+ukraine_tsne_df = tibble(
+  PCo1 = ukraine_tsne$Y[, 1],
+  PCo2 = ukraine_tsne$Y[, 2],
+  labs = attr(ukraine_dists, "Labels")
+)
+ggplot(ukraine_tsne_df, aes(x = PCo1, y = PCo2, label = labs)) +
+  geom_point() + geom_text_repel(col = "#0057b7") + coord_fixed() 
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+library("genefilter")
+load("../data/microbe.rda")
+metab = read.csv("../data/metabolites.csv", row.names = 1) |> as.matrix()
+dim(metab) 
+```
+
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+library("phyloseq")
+metab   = metab[rowSums(metab == 0) <= 3, ]
+microbe = prune_taxa(taxa_sums(microbe) > 4, microbe)
+microbe = filter_taxa(microbe, filterfun(kOverA(3, 2)), TRUE)
+metab   = log(1 + metab, base = 10)
+X       = log(1 + as.matrix(otu_table(microbe)), base = 10)
+
+## -----------------------------------------------------------------------------
+colnames(metab) = colnames(X)
+pca1 = dudi.pca(t(metab), scal = TRUE, scann = FALSE)
+pca2 = dudi.pca(t(X), scal = TRUE, scann = FALSE)
+rv1 = RV.rtest(pca1$tab, pca2$tab, 999)
+rv1
+```
+
+
+```{r}
+## -----------------------------------------------------------------------------
+library("PMA")
+ccaRes = CCA(t(X), t(metab), penaltyx = 0.15, penaltyz = 0.15, 
+             typex = "standard", typez = "standard")
+ccaRes
+
+## -----------------------------------------------------------------------------
+combined = cbind(t(X[ccaRes$u != 0, ]),
+                 t(metab[ccaRes$v != 0, ]))
+pcaRes = dudi.pca(combined, scannf = FALSE, nf = 3)
+# annotation
+genotype    = substr(rownames(pcaRes$li), 1, 2)
+sampleType  = substr(rownames(pcaRes$l1), 3, 4)
+featureType = grepl("\\.", colnames(combined))
+featureType = ifelse(featureType, "Metabolite", "OTU")
+sampleInfo  = data.frame(pcaRes$li, genotype, diet=sampleType)
+featureInfo = data.frame(pcaRes$c1, feature = substr(colnames(combined), 1, 6))
+
+## -----------------------------------------------------------------------------
+ggplot() +  geom_point(data = sampleInfo,
+  aes(x = Axis1, y = Axis2, col = diet, shape = genotype), size = 3) +
+  geom_label_repel(data = featureInfo,
+  aes(x = 5.5 * CS1, y = 5.5 * CS2, label = feature, fill = featureType),
+      size = 2, segment.size = 0.3,
+      label.padding = unit(0.1, "lines"), label.size = 0) +
+  geom_point(data = featureInfo,
+             aes(x = 5.5 * CS1, y = 5.5 * CS2, fill = featureType),
+             size = 1, shape = 23, col = "#383838") +
+  scale_color_brewer(palette = "Set2") +
+  scale_fill_manual(values = c("#a6d854", "#e78ac3")) +
+  guides(fill = guide_legend(override.aes = list(shape = 32, size = 0))) +
+  coord_fixed()+
+  labs(x = sprintf("Axis1 [%s%% Variance]",
+                   100 * round(pcaRes$eig[1] / sum(pcaRes$eig), 2)),
+       y = sprintf("Axis2 [%s%% Variance]",
+                   100 * round(pcaRes$eig[2] / sum(pcaRes$eig), 2)),
+       fill = "Feature Type", col = "Sample Type")
+```
+
+
+```{r}
+## -----------------------------------------------------------------------------
+ps1=readRDS("../data/ps1.rds")
+ps1p=filter_taxa(ps1, function(x) sum(x) > 0, TRUE)
+psCCpnA = ordinate(ps1p, "CCA",
+                 formula = ps1p ~ ageBin + family_relationship)
+
+## -----------------------------------------------------------------------------
+library("dplyr")
+tax = data.frame(tax_table(ps1p),stringsAsFactors = FALSE)
+tax$seq = rownames(tax)
+mainOrders = c("Clostridiales", "Bacteroidales",
+               "Lactobacillales", "Coriobacteriales")
+tax$Order[!(tax$Order %in% mainOrders)] = "Other"
+tax$Order = factor(tax$Order, levels = c(mainOrders, "Other"))
+tax$otu_id = seq_len(ncol(otu_table(ps1p)))
+scoresCCpnA = vegan::scores(psCCpnA)
+sites = data.frame(scoresCCpnA$sites)
+sites$SampleID = rownames(sites)
+sites = left_join(sites, as(sample_data(ps1p), "data.frame"))
+species = data.frame(scoresCCpnA$species)
+species$otu_id = seq_along(colnames(otu_table(ps1p)))
+species = left_join(species, tax)
+
+## -----------------------------------------------------------------------------
+evalProp = 100 * psCCpnA$CCA$eig[1:2] / sum(psCCpnA$CA$eig)
+ggplot() +
+ geom_point(data = sites,aes(x =CCA2, y =CCA1),shape =2,alpha=0.5) +
+ geom_point(data = species,aes(x =CCA2,y =CCA1,col = Order),size=1)+
+ geom_text_repel(data = dplyr::filter(species, CCA2 < (-2)),
+                   aes(x = CCA2, y = CCA1, label = otu_id),
+                   size = 2, segment.size = 0.1) +
+ facet_grid(. ~ ageBin) +
+ guides(col = guide_legend(override.aes = list(size = 2))) +
+ labs(x = sprintf("Axis2 [%s%% variance]", round(evalProp[2])),
+      y = sprintf("Axis1 [%s%% variance]", round(evalProp[1]))) +
+ scale_color_brewer(palette = "Set1") + theme(legend.position="bottom")
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+ggplot() +
+  geom_point(data = sites,   aes(x = CCA2, y = CCA1), shape = 2, alpha = 0.5) +
+  geom_point(data = species, aes(x = CCA2, y = CCA1, col = Order), size = 1) +
+  geom_text_repel(data =  dplyr::filter(species, CCA2 < (-2)),
+                  aes(x = CCA2, y = CCA1, label = otu_id),
+                  size = 2, segment.size = 0.1) +
+  facet_grid(. ~ family_relationship) +
+  guides(col = guide_legend(override.aes = list(size = 2))) +
+  labs(x = sprintf("Axis2 [%s%% variance]", round(evalProp[2])),
+       y = sprintf("Axis1 [%s%% variance]", round(evalProp[1]))) +
+  scale_color_brewer(palette = "Set1") + theme(legend.position="bottom")
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+ibd.pres = ifelse(assayIBD[, 1:28] > 8.633, 1, 0)
+ibd.pres[1:3,]
+dim(ibd.pres)
+```
+
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+IBDca = dudi.coa(ibd.pres, scannf = FALSE, nf = 4)
+fviz_eig(IBDca, geom = "bar", bar_width = 0.7) +
+    ylab("Percentage of chisquare") + ggtitle("")
+fviz(IBDca, element = "col", axes = c(1, 2), geom = "point",
+     habillage = day, palette = "Dark2", addEllipses = TRUE, color = day,
+     ellipse.type = "convex", alpha = 1, col.row.sup =  "blue",
+     select = list(name = NULL, cos2 = NULL, contrib = NULL),
+     repel = TRUE)
+```
+
+
+```{r}
+## -----------------------------------------------------------------------------
+d1 <- t(data.frame(
+  quiet = c(2770, 2150, 2140, 875, 1220, 821, 2510),
+  angry = c(2970, 1530, 1740, 752, 1040, 710, 1730),
+  clever = c(1650, 1270, 1320, 495, 693, 416, 1420),
+  depressed = c(1480, 957, 983, 147, 330, 102, 1270),
+  happy = c(19300, 8310, 8730, 1920, 4220, 2610, 9150),
+  lively = c(1840, 1250, 1350, 659, 621, 488, 1480),
+  perplexed = c(110,  71,  80,  19,  23,  15, 109),
+  virtuous = c(179,  80, 102,  20,  25,  17, 165)))
+colnames(d1) <- c('black','blue','green','grey','orange','purple','white')
+knitr::kable(d1, format='html')
+
+## -----------------------------------------------------------------------------
+colorsentiment = read.csv("../data/colorsentiment.csv")
+colsent = xtabs(colorsentiment[,3] ~ colorsentiment[,2] + colorsentiment[,1])
+coldf = data.frame(unclass(colsent))
+coldf = round(coldf / 1000)
+# xtable::xtable(round(coldf),display=rep("d", 8))
+colorfactor = names(coldf)
+veganout = vegan::cca(coldf)
+colorfactor[c(4,7)] = c("darkgrey", "grey")
+ordiplot(veganout, scaling = 3, type = "none", xlim =c(-1.2, 0.75), ylim =c(-0.7, 1))
+text(veganout, "sites", pch = 21, col = "red", bg = "yellow", scaling = 3)
+text(veganout, "species", pch = 21, col = colorfactor, bg = "black", cex=1.2, scaling = 3)
+```
+
+
+```{r}
+## -----------------------------------------------------------------------------
+platof = read.table("../data/platof.txt", header = TRUE)
+platof[1:4, ]
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+resPlato = dudi.coa(platof, scannf = FALSE, nf = 2)
+fviz_ca_biplot(resPlato, axes=c(2, 1)) + ggtitle("")
+fviz_eig(resPlato, geom = "bar", width = 0.6) + ggtitle("")
+```
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+names(resPlato)
+sum(resPlato$eig)
+percentageInertia=round(100*cumsum(resPlato$eig)/sum(resPlato$eig))
+percentageInertia
+percentageInertia[2]
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+load("../data/lakes.RData")
+lakelike[ 1:3, 1:8]
+lakelikeh[1:3, 1:8]
+e_coa  = dudi.coa(lakelike,  scannf = FALSE, nf = 2)
+e_pca  = dudi.pca(lakelike,  scannf = FALSE, nf = 2)
+eh_coa = dudi.coa(lakelikeh, scannf = FALSE, nf = 2)
+eh_pca = dudi.pca(lakelikeh, scannf = FALSE, nf = 2)
+
+## -----------------------------------------------------------------------------
+scatter(e_pca)
+scatter(e_coa)
+s.label(e_pca$li)
+s.label(e_coa$li)
+
+s.label(eh_pca$co)
+s.label(eh_pca$li)
+s.label(eh_coa$li)
+s.label(eh_coa$co)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+moignard_raw = as.matrix(read.csv("../data/nbt.3154-S3-raw.csv", row.names = 1))
+dist2r.euclid = dist(moignard_raw)
+dist1r.l1     = dist(moignard_raw, "manhattan")
+cells1.cmds = cmdscale(dist1r.l1,     k = 20, eig = TRUE)
+cells2.cmds = cmdscale(dist2r.euclid, k = 20, eig = TRUE)
+sum(cells1.cmds$eig[1:2]) / sum(cells1.cmds$eig)
+sum(cells2.cmds$eig[1:2]) / sum(cells2.cmds$eig)
+```
+
+
+```{r}
+## -----------------------------------------------------------------------------
+library("kernlab")
+laplacedot1 = laplacedot(sigma = 1/3934)
+rbfdot1     = rbfdot(sigma = (1/3934)^2 )
+Klaplace_cellsn   = kernelMatrix(laplacedot1, blom)
+KGauss_cellsn     = kernelMatrix(rbfdot1, blom)
+Klaplace_rawcells = kernelMatrix(laplacedot1, moignard_raw)
+KGauss_rawcells   = kernelMatrix(rbfdot1, moignard_raw)
+
+## -----------------------------------------------------------------------------
+dist1kr = 1 - Klaplace_rawcells
+dist2kr = 1 - KGauss_rawcells
+dist1kn = 1 - Klaplace_cellsn
+dist2kn = 1 - KGauss_cellsn
+
+cells1.kcmds = cmdscale(dist1kr, k = 20, eig = TRUE) 
+cells2.kcmds = cmdscale(dist2kr, k = 20, eig = TRUE) 
+
+percentage = function(x, n = 4) round(100 * sum(x[seq_len(n)]) / sum(x[x>0]))
+kperc1 = percentage(cells1.kcmds$eig)
+kperc2 = percentage(cells2.kcmds$eig)
+
+cellsn1.kcmds = cmdscale(dist1kn, k = 20, eig = TRUE) 
+cellsn2.kcmds = cmdscale(dist2kn, k = 20, eig = TRUE)
+
+## -----------------------------------------------------------------------------
+colc = rowData(Moignard)$cellcol
+library("scatterplot3d")
+scatterplot3d(cellsn2.kcmds$points[, 1:3], color=colc, pch = 20,
+   xlab = "Axis k1", ylab = "Axis k2", zlab = "Axis k3", angle=15)
+scatterplot3d(cellsn2.kcmds$points[, 1:3], color=colc, pch = 20,
+   xlab = "Axis k1", ylab = "Axis k2", zlab = "Axis k3", angle = -70)
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+library("rgl")
+plot3d(cellsn2.kcmds$points[, 1:3], col = colc, size = 3,
+       xlab = "Axis1", ylab = "Axis2", zlab = "Axis3")
+plot3d(cellsn2.kcmds$points[, c(1,2,4)], col = colc, size = 3,
+       xlab = "Axis1", ylab = "Axis2", zlab = "Axis4")
+# Using an L1 distance instead.
+plot3d(cellsn1.kcmds$points[, 1:3], col = colc, size = 3,
+       xlab = "Axis1", ylab = "Axis2", zlab = "Axis3")
+plot3d(cellsn1.kcmds$points[, c(1,2,4)], col = colc, size = 3,
+       xlab = "Axis1", ylab = "Axis2", zlab = "Axis4")
+```
+
+
+```{r}
+## -----------------------------------------------------------------------------
+library("LPCM")
+library("diffusionMap")
+dmap1 = diffuse(dist1n.l1, neigen = 10)
+combs = combn(4, 3)
+lpcplots = apply(combs, 2, function(j) lpc(dmap1$X[, j], scale = FALSE))
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+library("rgl")
+for (i in seq_along(lpcplots))
+  plot(lpcplots[[i]], type = "l", lwd = 3,
+  xlab = paste("Axis", combs[1, i]),
+  ylab = paste("Axis", combs[2, i]),
+  zlab = paste("Axis", combs[3, i]))
+```
+
+
+```{r}
+## -----------------------------------------------------------------------------
+outlpce134 = lpc(dmap1$X[,c(1,3,4)], scale=FALSE, h=0.5)
+plot3d(dmap1$X[,c(1,3,4)], col=colc, pch=20, 
+       xlab="Axis1", ylab="Axis3", zlab="Axis4")
+plot3d(outlpce134$LPC, type="l", lwd=7, add=TRUE)
+
+outlpce134 = lpc(dmap1$X[,c(1,3,4)], scale=FALSE, h=0.7)
+plot3d(outlpce134$LPC, type="l", lwd=7,
+       xlab="Axis1", ylab="Axis3", zlab="Axis4")
+plot3d(dmap1$X[,c(1,3,4)], col=colc, 
+       xlab="", ylab="", zlab="", add=TRUE)
+```
+
+
+```{r}
+## -----------------------------------------------------------------------------
+library("diffusionMap")
+dmap2 = diffuse(dist2n.euclid, neigen = 11)
+dmap1 = diffuse(dist1n.l1, neigen = 11)
+plot(dmap2)
+```
+
+
+```{r}
+## -----------------------------------------------------------------------------
+library("scatterplot3d")
+scp3d = function(axestop = 1:3, dmapRes = dmap1, color = colc,
+           anglea = 20, pch = 20)
+scatterplot3d(dmapRes$X[, axestop], color = colc,
+    xlab = paste("Axis",axestop[1]), ylab = paste("Axis", axestop[2]),
+    zlab = paste("Axis",axestop[3]), pch = pch, angle = anglea)
+```
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+# TODO: duplicate of the below as a workaround;
+# else white space is rendered between lines
+scp3d()
+scp3d(anglea=310)
+scp3d(anglea=210)
+scp3d(anglea=150)
+
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+## scp3d()
+## scp3d(anglea=310)
+## scp3d(anglea=210)
+## scp3d(anglea=150)
+
+## -----------------------------------------------------------------------------
+# interactive plot
+library("rgl")
+plot3d(dmap1$X[,1:3], col=colc, size=3)
+plot3d(dmap1$X[,2:4], col=colc, size=3)
+
+```
+

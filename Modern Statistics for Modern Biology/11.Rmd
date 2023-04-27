@@ -1,0 +1,612 @@
+---
+title: '11'
+output: html_document
+date: "2023-04-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 11   Image data 
+
+
+```{r}
+
+## ----data1, fig.cap=""--------------------------------------------------------
+library("EBImage")
+imagefile = system.file("images", "mosquito.png",
+                        package = "MSMB")
+mosq = readImage(imagefile)
+## ----vis1, eval = FALSE-------------------------------------------------------
+display(mosq)
+
+
+```
+
+
+```{r}
+## ----mosquito, fig.keep = 'high', fig.cap = "Mosquito discovered deceased in the suburbs of Decatur, Georgia (credit: CDC / Janice Haney Carr).", dev = "png", dpi = 300, fig.width=dim(mosq)[1]/300, fig.height=dim(mosq)[2]/300----
+display(mosq, method = "raster")
+text(x = 85, y = 800, label = "A mosquito",
+     adj = 0, col = "orange", cex = 1.5)
+```
+
+```{r}
+display(1-mosq, method = "raster")
+```
+
+```{r}
+
+## ----vis3a, eval = FALSE------------------------------------------------------
+imagefile = system.file("images", "hiv.png",
+                        package = "MSMB")
+hivc = readImage(imagefile)
+display(hivc)
+```
+
+```{r}
+## ----vis3b, eval = TRUE, echo = FALSE-----------------------------------------
+imagefile = system.file("images", "hiv.png",
+                        package = "MSMB")
+hivc = readImage(imagefile)
+
+## ---- hiv, eval = TRUE, echo = FALSE, fig.show = 'hold', fig.keep = 'high', fig.cap = "Scanning electron micrograph of HIV-1 virions budding from a cultured lymphocyte (credit: CDC / C. Goldsmith, P. Feorino, E.L. Palmer, W.R. McManus)."----
+knitr::include_graphics(c('../images/hiv.png'), dpi = NA)
+
+```
+
+```{r}
+## ----image-oneminus, fig.keep = 'high', fig.cap = "Tiled display of four images of cell nuclei from the **[EBImage](https://bioconductor.org/packages/EBImage/)** package.", fig.margin = FALSE, dev = "png"----
+nuc = readImage(system.file("images", "nuclei.tif",
+                            package = "EBImage"))
+
+nuc
+```
+
+```{r}
+dim(imageData(nuc))
+```
+
+```{r}
+display(1 - nuc, method = "raster", all = TRUE)
+```
+
+```{r}
+display( nuc, method = "raster", all = TRUE)
+```
+
+
+```{r}
+## ----nucleitiledoneframe, dev = "png"-----------------------------------------
+display(1 - nuc, method = "raster", frame = 2)
+
+```
+
+```{r}
+
+## ----how1---------------------------------------------------------------------
+class(mosq)
+```
+
+```{r}
+mosq[1:3,1:3]
+```
+
+```{r}
+## ----how2, echo = FALSE, eval = FALSE-----------------------------------------
+showClass("Image")
+
+```
+
+```{r}
+## ----dim----------------------------------------------------------------------
+dim(mosq)
+```
+
+```{r}
+## ----mosqhist, fig.keep = 'high', fig.cap = "Histogram of the pixel intensities in `mosq`. Note that the range is between 0 and 1.", fig.width = .h$width, fig.height = .h$height----
+hist(mosq)
+```
+
+```{r}
+## ----check, echo=FALSE--------------------------------------------------------
+stopifnot(all(mosq>=0 & mosq<=1), isTRUE(all.equal(max(mosq), 1)), isTRUE(all.equal(min(mosq), 0)))
+
+
+## ----how3---------------------------------------------------------------------
+dim(imageData(mosq))
+imageData(mosq)[1:3, 1:6]
+```
+
+```{r}
+## ----show1--------------------------------------------------------------------
+mosq
+
+```
+
+```{r}
+## ----show2--------------------------------------------------------------------
+hivc
+
+```
+
+```{r}
+
+
+
+## ----show3, echo=FALSE--------------------------------------------------------
+stopifnot(colorMode(mosq)==Grayscale, colorMode(hivc)==Color, dim(nuc)[3]==4)
+
+
+## ----how6, results = "hide"---------------------------------------------------
+nuc
+dim(imageData(nuc))
+```
+
+```{r}
+## ----checkassertion, echo = FALSE---------------------------------------------
+stopifnot(all(c("  frames.total : 4 ", "  frames.render: 4 ") %in%
+              capture.output(EBImage:::showImage(nuc))))
+
+
+## ----write1-------------------------------------------------------------------
+writeImage(hivc, "hivc.jpeg", quality = 85)
+
+```
+
+```{r}
+dim(hivc)
+```
+
+```{r}
+## ----objectsize---------------------------------------------------------------
+object.size(hivc) |> format(units = "Mb")
+object.size(hivc) |> format(units = "Kb")
+(object.size(hivc) / prod(dim(hivc))) |> format() |> paste("per pixel")
+file.info("hivc.jpeg")$size
+16 * 3 * 8 #three color, 16 Megapixel image
+```
+
+```{r}
+## ---- mosqcrop, eval = TRUE, echo = FALSE, fig.show = 'hold', fig.keep = 'high', fig.cap = "Cropping: `mosqcrop`"----
+knitr::include_graphics(c('../images/mosquito.png'), dpi = NA)
+
+```
+
+```{r}
+## ----manip1a------------------------------------------------------------------
+mosqinv = normalize(-mosq)
+
+
+## ----manip3a------------------------------------------------------------------
+mosqcont = mosq * 3
+mosqexp = mosq ^ (1/3)
+display(mosqcont, method = "raster")
+
+```
+
+```{r}
+display(mosqexp, method = "raster")
+```
+
+```{r}
+display(mosq+0.4, method = "raster")
+```
+
+```{r}
+display(transpose(mosq), method = "raster")
+```
+
+
+```{r}
+mosq[100:438, 112:550]
+```
+
+
+```{r}
+## ----manip4a------------------------------------------------------------------
+mosqcrop   = mosq[100:438, 112:550]
+mosqthresh = mosq > 0.5
+mosqtransp = transpose(mosq)
+display(mosqcrop, method = "raster")
+display(mosqthresh, method = "raster")
+display(mosqtransp, method = "raster")
+```
+
+```{r}
+## ----checkassertionont, echo = FALSE------------------------------------------
+stopifnot(identical(t(mosq), transpose(mosq)))
+
+
+```
+
+```{r}
+## ----spattrans1---------------------------------------------------------------
+mosqrot   = EBImage::rotate(mosq, angle = 30)
+mosqshift = translate(mosq, v = c(40, 70))
+mosqflip  = flip(mosq)
+mosqflop  = flop(mosq)
+
+display(mosqrot, method = "raster")
+display(mosqshift, method = "raster")
+display(mosqflip, method = "raster")
+display(mosqflop, method = "raster")
+```
+
+```{r}
+## ----MSMB, results="hide"-----------------------------------------------------
+imagefiles = system.file("images", c("image-DAPI.tif",
+  "image-FITC.tif", "image-Cy3.tif"), package="MSMB")
+cells = readImage(imagefiles)
+display(cells)
+## ----checkdim, echo=FALSE-----------------------------------------------------
+stopifnot(dim(cells)[3]==3)
+
+## ----range--------------------------------------------------------------------
+apply(cells, 3, range)
+```
+
+```{r}
+## ----fixrange-----------------------------------------------------------------
+cells[,,1]   = 32 * cells[,,1]
+cells[,,2:3] = 16 * cells[,,2:3]
+apply(cells, 3, range)
+
+```
+
+```{r}
+getFrame(cells, 1)
+```
+
+```{r}
+## ----defw---------------------------------------------------------------------
+w = makeBrush(size = 51, shape = "gaussian", sigma = 7)
+nucSmooth = filter2(getFrame(cells, 1), w)
+dim(w)
+```
+
+```{r}
+## ----image-filter2, fig.keep = 'high', fig.cap = "The middle row of the weight matrix, `w[` (ref:image-filter2-1) `, ]`", fig.width = 3, fig.height = 2.6, dev = "png"----
+library("tibble")
+library("ggplot2")
+tibble(w = w[(nrow(w)+1)/2, ]) |>
+  ggplot(aes(y = w, x = seq(along = w))) + geom_point()
+
+```
+
+```{r}
+## ----smooth-------------------------------------------------------------------
+cellsSmooth = Image(dim = dim(cells))
+sigma = c(1, 3, 3)
+for(i in seq_along(sigma))
+  cellsSmooth[,,i] = filter2( cells[,,i],
+         filter = makeBrush(size = 51, shape = "gaussian",
+                            sigma = sigma[i]) )
+
+```
+
+```{r}
+## ----illuminationartifact1----------------------------------------------------
+py = seq(-1, +1, length.out = dim(cellsSmooth)[1])
+px = seq(-1, +1, length.out = dim(cellsSmooth)[2])
+illuminationGradient = Image(
+     outer(py, px, function(x, y) exp(-(x^2+y^2))))
+nucBadlyIlluminated = cellsSmooth[,,1] * illuminationGradient
+
+```
+
+```{r}
+## ----illuminationartifact2----------------------------------------------------
+disc = makeBrush(21, "disc")
+disc = disc / sum(disc)
+localBackground = filter2(nucBadlyIlluminated, disc)
+offset = 0.02
+nucBadThresh = (nucBadlyIlluminated - localBackground > offset)
+
+```
+
+
+```{r}
+## ----adathresh----------------------------------------------------------------
+nucThresh =
+  (cellsSmooth[,,1] - filter2(cellsSmooth[,,1], disc) > offset)
+
+
+## ----morphopen1---------------------------------------------------------------
+nucOpened = EBImage::opening(nucThresh,
+                  kern = makeBrush(5, shape = "disc"))
+```
+
+
+```{r}
+## ----imageProcessing14--------------------------------------------------------
+nucSeed = bwlabel(nucOpened)
+table(nucSeed)
+```
+
+
+```{r}
+## ----imageProcessing17, eval = FALSE------------------------------------------
+## display(colorLabels(nucSeed))
+
+## ----imageProcessing15a-------------------------------------------------------
+nucMask = cellsSmooth[,,1] - filter2(cellsSmooth[,,1], disc) > 0
+
+
+## ----imageProcessing15b-------------------------------------------------------
+nucMask = fillHull(nucMask)
+
+
+## ----imageProcessing16--------------------------------------------------------
+nuclei = propagate(cellsSmooth[,,1], nucSeed, mask = nucMask)
+
+```
+
+
+```{r}
+
+## ----voronoiExample-----------------------------------------------------------
+zeros        = Image(dim = dim(nuclei))
+voronoiExamp = propagate(seeds = nuclei, x = zeros, lambda = 100)
+voronoiPaint = paintObjects(voronoiExamp, 1 - nucOpened)
+
+
+## ----voronoiEx----------------------------------------------------------------
+head(table(voronoiExamp))
+ind = which(voronoiExamp == 13, arr.ind = TRUE)
+head(ind, 3)
+```
+
+```{r}
+## ----histcellbody-1, fig.width = .h$width, fig.height = .h$height, fig.keep="high", eval = TRUE, echo = FALSE, fig.cap = "Histogram of the actin channel in `cellsSmooth`, after taking the logarithm."----
+hist(log(cellsSmooth[,,3]) )
+
+```
+
+```{r}
+## ----histcellbody-2, fig.width = .h$width, fig.height = .h$height, fig.keep="high", eval = TRUE, echo = FALSE, fig.cap = "Zoom into Figure \\@ref(fig:histcellbody-1)."----
+hist(log(cellsSmooth[,,3]), xlim = -c(3.6, 3.1), breaks = 300)
+
+```
+
+
+```{r}
+
+## ----histcellbody, eval = FALSE, echo = TRUE----------------------------------
+## hist(log(cellsSmooth[,,3]) )
+## hist(log(cellsSmooth[,,3]), xlim = -c(3.6, 3.1), breaks = 300)
+
+
+## ----checkhistcellsSmooth, echo=FALSE-----------------------------------------
+stopifnot(mean(cellsSmooth[,,3]>=exp(-3.6) & cellsSmooth[,,3]<=exp(-3.1)) > 0.68)
+
+
+## ----musigmaEstimator, message=FALSE------------------------------------------
+library("genefilter")
+bgPars = function(x) {
+  x    = log(x)
+  loc  = half.range.mode( x )
+  left = (x - loc)[ x < loc ]
+  wid  = sqrt( mean(left^2) )
+  c(loc = loc, wid = wid, thr = loc + 6*wid)
+}
+cellBg = apply(cellsSmooth, MARGIN = 3, FUN = bgPars)
+cellBg
+```
+
+```{r}
+## ----histcellbody-3, fig.keep = 'high', fig.cap = "As in Figure \\@ref(fig:histcellbody-2), but with `loc` and `thr` shown by vertical lines.", fig.width = .h$width, fig.height = .h$height----
+hist(log(cellsSmooth[,,3]), xlim = -c(3.6, 3.1), breaks = 300)
+abline(v = cellBg[c("loc", "thr"), 3], col = c("brown", "red"))
+
+```
+
+```{r}
+## ----cytoplasmMask------------------------------------------------------------
+cytoplasmMask = (cellsSmooth[,,2] > exp(cellBg["thr", 2])) |
+       nuclei | (cellsSmooth[,,3] > exp(cellBg["thr", 3]))
+
+
+## ----imageProcessing22--------------------------------------------------------
+cellbodies = propagate(x = cellsSmooth[,,3], seeds = nuclei,
+                       lambda = 1.0e-2, mask = cytoplasmMask)
+
+```
+
+
+```{r}
+## ----imageProcessing25--------------------------------------------------------
+cellsColor = rgbImage(red   = cells[,,3],
+                      green = cells[,,2],
+                      blue  = cells[,,1])
+
+nucSegOnNuc  = paintObjects(nuclei, tgt = toRGB(cells[,,1]),
+                            col = "#ffff00")
+nucSegOnAll  = paintObjects(nuclei, tgt = cellsColor,
+                            col = "#ffff00")
+cellSegOnAll = paintObjects(cellbodies, tgt = nucSegOnAll,
+                            col = "#ff0080")
+
+```
+
+
+```{r}
+
+## ----baserfeats---------------------------------------------------------------
+meanNucInt       = tapply(cells[,,1], nuclei, mean)
+meanActIntInNuc  = tapply(cells[,,3], nuclei, mean)
+meanActIntInCell = tapply(cells[,,3], cellbodies, mean)
+
+
+## ----pairsint, fig.keep = 'high', fig.cap = "Pairwise scatterplots of per-cell intensity descriptors. \\label{pairsint}", fig.margin = FALSE, fig.width = 5.3, fig.height = 5.3----
+library("GGally")
+ggpairs(tibble(meanNucInt, meanActIntInNuc, meanActIntInCell))
+
+
+
+```
+
+```{r}
+## ----imageProcessing27--------------------------------------------------------
+F1 = computeFeatures(nuclei,     cells[,,1], xname = "nuc",
+                                             refnames = "nuc")
+F2 = computeFeatures(cellbodies, cells[,,2], xname = "cell",
+                                             refnames = "tub")
+F3 = computeFeatures(cellbodies, cells[,,3], xname = "cell",
+                                             refnames = "act")
+dim(F1)
+
+
+## ----showF1-------------------------------------------------------------------
+ F1[1:3, 1:5]
+
+```
+
+```{r}
+## ----readlymphnodedata--------------------------------------------------------
+library("readr")
+library("dplyr")
+cellclasses = c("T_cells", "Tumor", "DCs", "other_cells")
+brcalymphnode = lapply(cellclasses, function(k) {
+    read_csv(file.path("..", "data",
+             sprintf("99_4525D-%s.txt", k))) |>
+    transmute(x = globalX,
+              y = globalY,
+              class = k)
+}) |> bind_rows() |> mutate(class = factor(class))
+
+brcalymphnode
+table(brcalymphnode$class)
+```
+
+```{r}
+## ----checkcellnumber, echo = FALSE--------------------------------------------
+tabtab = table(brcalymphnode$class)
+within = function(x, a, b) (x>a & x<b)
+stopifnot(all(within(tabtab[c("T_cells", "Tumor", "DCs")], c(100000, 27000, 800), c(110000, 28000, 1000))))
+
+
+## ----brcalntcells, fig.keep = 'high', fig.cap = "Scatterplot of the $x$ and $y$ positions of the T- and tumor cells in `brcalymphnode`. The locations were obtained by a segmentation algorithm from a high resolution version of Figure \\@ref(fig:stainedlymphnode). Some rectangular areas in the T-cells plot are suspiciously empty, this could be because the corresponding image tiles within the overall composite image went missing, or were not analyzed.", fig.margin = FALSE, dev = "png", dpi = 300, fig.width=9, fig.height=4.5, pointsize=24----
+ggplot(filter(brcalymphnode, class %in% c("T_cells", "Tumor")),
+   aes(x = x, y = y, col = class)) + geom_point(shape = ".") +
+   facet_grid( . ~ class) + guides(col = "none")
+
+```
+
+```{r}
+## ----spatstat1, results = "hide"----------------------------------------------
+library("spatstat")
+
+
+## ----spatstat2----------------------------------------------------------------
+ln = with(brcalymphnode,
+  ppp(x = x, y = y, marks = class, xrange = range(x), yrange = range(y)))
+ln
+
+
+## ----checkclassln, echo = FALSE-----------------------------------------------
+stopifnot(identical(class(ln), "ppp"))
+```
+
+
+```{r}
+## ----spatstat3----------------------------------------------------------------
+library("spatstat")
+ln = with(brcalymphnode, ppp(x = x, y = y, marks = class, 
+                             xrange = range(x), yrange = range(y)))
+ln
+```
+
+
+```{r}
+## ----densityppz1--------------------------------------------------------------
+d = density(subset(ln, marks == "Tumor"), edge=TRUE, diggle=TRUE)
+plot(d)
+
+```
+
+```{r}
+## ----densityppp1, fig.keep = 'high', fig.cap = "Intensity estimate for the cells marked `Tumor` in `ppp`. The support of the estimate is the polygon that we specified earlier on (Figure \\@ref(fig:convhull)).", fig.width = 3.75, fig.height = 3.5, echo = FALSE----
+par(mai = c(0, 0, 0.2, 0.7))
+plot(d)
+```
+
+```{r}
+## ----densityppz0--------------------------------------------------------------
+d0 = density(subset(ln, marks == "Tumor"), edge = FALSE)
+plot(d0)
+```
+
+```{r}
+## ----densityppp0, fig.keep = 'high', fig.cap = "As Figure \\@ref(fig:densityppp1), but without edge correction \\label{densityppp0}", fig.width = 3.75, fig.height = 3.5, echo = FALSE----
+par(mai = c(0, 0, 0.2, 0.7))
+plot(d0)
+```
+
+```{r}
+## ----relrisk-calc-------------------------------------------------------------
+rr = relrisk(ln, sigma = 250)
+
+
+## ----relrisk, fig.keep = 'high', fig.cap = "Estimates of the spatially varying probability of each of the cell claases, conditional on there being cells.", fig.margin = FALSE, fig.width=7, fig.height=7----
+plot(rr)
+```
+
+```{r}
+## ----checkConditional, echo=FALSE---------------------------------------------
+m = rr[[1]]$v
+for(i in 2:length(rr)) m = m + rr[[i]]$v
+#stopifnot(all(is.na(m) | abs(m-1)<1e-6))
+
+
+## ----Gestshow-----------------------------------------------------------------
+gln = Gest(ln)
+gln
+```
+
+```{r}
+## ----Gest, fig.keep = 'high', fig.cap = "Estimates of $G$, using three different edge effect corrections --which here happen to essentially lie on top of each other-- and the theoretical distribution for a homogenous Poisson process. \\label{Gest}", fig.width = 4.25, fig.height = 4.25, results="hide"----
+library("RColorBrewer")
+plot(gln, xlim = c(0, 10), lty = 1, col = brewer.pal(4, "Set1"))
+
+
+```
+
+```{r}
+
+## ----Linhom-------------------------------------------------------------------
+Lln = Linhom(subset(ln, marks == "T_cells"))
+Lln
+
+```
+
+```{r}
+## ----Images-Lln, fig.keep = 'high', fig.cap = "Estimate of $L_{\\scriptsize \\mbox{inhom}}$, Equations \\@ref(eq:kinhom) and \\@ref(eq:Lest), of the T cell pattern. \\label{Images-Lln}", fig.width = 4, fig.height = 5.9, results = "hide"----
+plot(Lln, lty = 1, col = brewer.pal(3, "Set1"))
+
+
+```
+
+
+```{r}
+## ----pcfdo--------------------------------------------------------------------
+pcfln = pcf(Kinhom(subset(ln, marks == "T_cells")))
+
+
+## ----Images-pcf, fig.keep = 'high', fig.show = "hold", fig.cap = "Estimate of the pair correlation function, Equation \\@ref(eq:pcf), of the T cell pattern. \\label{Images-pcf}", fig.width=5, fig.height=5, results="hide"----
+plot(pcfln, lty = 1)
+plot(pcfln, lty = 1, xlim = c(0, 10))
+
+```
+
+```{r}
+
+
+## ----samplingpcf, fig.keep = 'high', fig.cap = "Answer to Question \\@ref(ques:Image-ques-samplingpcf): as in the bottom panel of Figure \\@ref(fig:Images-pcf), but with denser sampling.", fig.width=5, fig.height=5----
+pcfln2 = pcf(Kinhom(subset(ln, marks == "T_cells"), r = seq(0, 10, by = 0.2)))
+plot(pcfln2, lty = 1)
+
+
+```
+

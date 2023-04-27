@@ -1,0 +1,816 @@
+---
+title: '3'
+output: html_document
+date: "2023-04-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 3  High Quality Graphics in R
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+## ## produces the xkcd-plotting image used below
+library("xkcd")
+library("showtext")
+library("sysfonts")
+library("tibble")
+## 
+introplotdata = tibble(
+   y = c(seq(-8, 1, length=25)^2, rep(1, 5), seq(1, 5,length=25)^2)^2,
+   x = seq(1, 55, length.out = length(y)))
+
+ dataman = tibble(
+   x = 30,
+   y = 400,
+   scale = 100,
+   ratioxy = 0.1,
+   angleofspine =  -pi/2 ,
+   anglerighthumerus = -pi/6,
+   anglelefthumerus  = pi * 7/6,
+   anglerightradius = 0,
+   angleleftradius = 0,
+   angleleftleg  = 19*pi/12,
+   anglerightleg = 17*pi/12,
+   angleofneck   = 1.4*pi)
+ 
+ mapping = do.call(aes_string, colnames(dataman) %>% (function(x) setNames(as.list(x), x)))
+ 
+ggplot(introplotdata) + geom_line(aes(x = x, y = y), size = 2) +
+    xkcdaxis(c(0, 50), c(0, 1000)) + xlab("Time to make plot in minutes") +
+    ylab("Time to understand plot in minutes") + xkcdman(mapping, dataman) +
+    theme(axis.title.x = element_text(margin = margin(15, 0, 0, 0)))
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+head(DNase)
+```
+
+```{r}
+
+plot(DNase$conc, DNase$density)
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+plot(DNase$conc, DNase$density,
+  ylab = attr(DNase, "labels")$y,
+  xlab = paste(attr(DNase, "labels")$x, attr(DNase, "units")$x),
+  pch = 3,
+  col = "blue")
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+hist(DNase$density, breaks=25, main = "")
+boxplot(density ~ Run, data = DNase)
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+library("Hiiragi2013")
+data("x")
+dim(Biobase::exprs(x))
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+head(pData(x), n = 2)
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+library("dplyr")
+groups = group_by(pData(x), sampleGroup) %>%
+  summarise(n = n(), color = unique(sampleColour))
+groups
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+## f(x) %>% g(y) %>% h
+## h(g(f(x), y))
+
+## -----------------------------------------------------------------------------
+library("ggplot2")
+ggplot(DNase, aes(x = conc, y = density)) + geom_point()
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+ggplot(groups, aes(x = sampleGroup, y = n)) +
+  geom_bar(stat = "identity")
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+## check an assertion made in the text above
+stopifnot(formals(ggplot2::geom_bar)$stat=="count")
+
+```
+
+
+```{r}
+## -----------------------------------------------------------------------------
+groupColor = setNames(groups$color, groups$sampleGroup)
+
+## -----------------------------------------------------------------------------
+ggplot(groups, aes(x = sampleGroup, y = n, fill = sampleGroup)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = groupColor, name = "Groups") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+gg = ggplot(DNase, aes(x = conc, y = density)) + geom_point()
+
+## -----------------------------------------------------------------------------
+## gg
+print(gg)
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+ggplot2::ggsave("DNAse-histogram-demo.pdf", plot = gg)
+
+## -----------------------------------------------------------------------------
+file.remove("DNAse-histogram-demo.pdf")
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+library("mouse4302.db")
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+## # I used this code to find the below two probes
+idx = order(rowVars(Biobase::exprs(x)), decreasing=TRUE)[seq_len(2000)]
+cc  = cor(t(Biobase::exprs(x)[idx,]))
+cco = order(cc)[seq(1, 1001, by=2) ]
+jj2 = rownames(Biobase::exprs(x))[ idx[ (cco-1) %/% length(idx) + 1 ] ]
+jj1 = rownames(Biobase::exprs(x))[ idx[ (cco-1) %%  length(idx) + 1 ] ]
+dftx = as.data.frame(t(Biobase::exprs(x)))
+#par(ask=TRUE)
+for(i in seq(along = cco)) {
+  df = AnnotationDbi::select(mouse4302.db,
+                             keys = c(jj1[i], jj2[i]), keytype = "PROBEID",
+    columns = c("SYMBOL", "GENENAME"))
+   print(ggplot(dftx, aes( x = get(jj1[i]), y = get(jj2[i]))) +
+   geom_point(shape = 1) +
+   xlab(paste(jj1[i], df$SYMBOL[1])) +
+   ylab(paste(jj2[i], df$SYMBOL[2])) +
+   ggtitle(round(cc[jj1[i], jj2[i]], 3)) + geom_smooth(method = "loess"))
+}
+```
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+dftx = data.frame(t(Biobase::exprs(x)), pData(x))
+ggplot( dftx, aes( x = X1426642_at, y = X1418765_at )) +
+  geom_point( shape = 1 ) +
+  geom_smooth( method = "loess" )
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+stopifnot(is(dftx, "data.frame"))
+
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+.one <- AnnotationDbi::select(mouse4302.db, 
+                              keys = "1418765_at", 
+                              keytype = "PROBEID", 
+                              columns = "SYMBOL")$SYMBOL
+.two <- AnnotationDbi::select(mouse4302.db, 
+                              keys = "1426642_at", 
+                              keytype = "PROBEID", 
+                              columns = "SYMBOL")$SYMBOL
+
+## -----------------------------------------------------------------------------
+ggplot( dftx, aes( x = X1426642_at, y = X1418765_at ))  +
+  geom_point( aes( color = sampleColour), shape = 19 ) +
+  geom_smooth( method = "loess" ) +
+  scale_color_discrete( guide = "none" )
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+library("mouse4302.db")
+
+
+
+## -----------------------------------------------------------------------------
+AnnotationDbi::select(mouse4302.db,
+   keys = c("1426642_at", "1418765_at"), keytype = "PROBEID",
+   columns = c("SYMBOL", "GENENAME"))
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+dfx = as.data.frame(Biobase::exprs(x))
+ggplot(dfx, aes(x = `20 E3.25`)) + geom_histogram(binwidth = 0.2)
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+pb = ggplot(groups, aes(x = sampleGroup, y = n))
+
+## -----------------------------------------------------------------------------
+class(pb)
+
+```
+
+```{r}
+pb
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+pb = pb + geom_bar(stat = "identity")
+pb = pb + aes(fill = sampleGroup)
+pb = pb + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+pb = pb + scale_fill_manual(values = groupColor, name = "Groups")
+pb
+
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+pb.polar = pb + coord_polar() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 1),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank()) +
+  xlab("") + ylab("")
+pb.polar
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+selectedProbes = c( Fgf4 = "1420085_at", Gata4 = "1418863_at",
+                   Gata6 = "1425463_at",  Sox2 = "1416967_at")
+
+## -----------------------------------------------------------------------------
+## # How I found the selectedProbes:
+## AnnotationDbi::select(mouse4302.db,
+##    keys = c("Fgf4", "Sox2", "Gata6", "Gata4"), keytype = "SYMBOL",
+##    columns = c("PROBEID"))
+
+## -----------------------------------------------------------------------------
+selectedProbes2 = AnnotationDbi::select(mouse4302.db,
+   keys = selectedProbes, keytype = "PROBEID", columns = c("SYMBOL"))
+stopifnot(identical(sort(selectedProbes2$SYMBOL), sort(names(selectedProbes))),
+          all(selectedProbes[selectedProbes2$SYMBOL] == selectedProbes2$PROBEID))
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+library("reshape2")
+genes = melt(Biobase::exprs(x)[selectedProbes, ],
+             varnames = c("probe", "sample"))
+
+## -----------------------------------------------------------------------------
+genes$gene =
+  names(selectedProbes)[match(genes$probe, selectedProbes)]
+head(genes)
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+ggplot(genes, aes(x = gene, y = value)) +
+  stat_summary(fun = mean, geom = "bar")
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+library("Hmisc")
+ggplot(genes, aes( x = gene, y = value, fill = gene)) +
+  stat_summary(fun = mean, geom = "bar") +
+  stat_summary(fun.data = mean_cl_normal, geom = "errorbar",
+               width = 0.25)
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+p = ggplot(genes, aes( x = gene, y = value, fill = gene))
+p + geom_boxplot()
+
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+p + geom_dotplot(binaxis = "y", binwidth = 1/6,
+       stackdir = "center", stackratio = 0.75,
+       aes(color = gene))
+```
+
+```{r}
+
+library("ggbeeswarm")
+p + geom_beeswarm(aes(color = gene))
+
+## ------------
+```
+
+```{r}
+#-----------------------------------------------------------------
+ggplot(genes, aes( x = value, color = gene)) + geom_density()
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+p + geom_violin()
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+library("ggridges")
+ggplot(genes, aes(x = value, y = gene, fill = gene)) + 
+  geom_density_ridges()
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+top42 = order(rowMeans(Biobase::exprs(x)), decreasing = TRUE)[1:42]
+g42 = melt(Biobase::exprs(x)[rev(top42), ], varnames = c("probe", "sample"))
+ggplot(g42, aes(x = value, y = probe)) 
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+ggplot(g42, aes(x = value, y = probe)) + 
+  geom_density_ridges() + theme(legend.position = "none",
+    axis.title.y = element_blank(), axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()) + xlim(13, 15) 
+
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+simdata = rnorm(70)
+tibble(index = seq(along = simdata),
+          sx = sort(simdata)) %>%
+ggplot(aes(x = sx, y = index)) + geom_step()
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+ggplot(genes, aes( x = value, color = gene)) + stat_ecdf()
+
+```
+
+```{r}
+## -----------------------------------------------------------------------------
+## # I used the functon bimodality_coefficient from the modes package to identify the most
+## # bimodal looking array, number 64
+## j0 = which.max(vapply(seq_len(ncol(x)), function(j){
+##        modes  ::    bimodality_coefficient(Biobase::exprs(x)[, j])
+##     }, numeric(1)))
+
+## -----------------------------------------------------------------------------
+ggplot(dfx, aes(x = `64 E4.5 (EPI)`)) + geom_histogram(bins = 100)
+```
+
+```{r}
+
+
+ggplot(dfx, aes(x = 2 ^ `64 E4.5 (EPI)`)) + 
+  geom_histogram(binwidth = 20) + xlim(0, 1500)
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+scp = ggplot(dfx, aes(x = `59 E4.5 (PE)` ,
+                      y = `92 E4.5 (FGF4-KO)`))
+scp + geom_point()
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+scp  + geom_point(alpha = 0.1)
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+scp + geom_density2d()
+
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+scp + geom_density2d(h = 0.5, bins = 60)
+```
+
+```{r}
+
+library("RColorBrewer")
+colorscale = scale_fill_gradientn(
+    colors = rev(brewer.pal(9, "YlGnBu")),
+    values = c(0, exp(seq(-5, 0, length.out = 100))))
+
+scp + stat_density2d(h = 0.5, bins = 60,
+          aes( fill = after_stat(level)), geom = "polygon") +
+  colorscale + coord_fixed()
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+scp + geom_hex() + coord_fixed()
+```
+
+```{r}
+
+scp + geom_hex(binwidth = c(0.2, 0.2)) + colorscale +
+  coord_fixed()
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+library("ggthemes")
+sunsp = tibble(year   = time(sunspot.year),
+               number = as.numeric(sunspot.year))
+sp = ggplot(sunsp, aes(x = year, y = number)) + geom_line()
+sp
+```
+
+
+```{r}
+
+ratio = with(sunsp, bank_slopes(year, number))
+sp + coord_fixed(ratio = ratio)
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+library("magrittr")
+dftx$lineage %<>% sub("^$", "no", .)
+dftx$lineage %<>% factor(levels = c("no", "EPI", "PE", "FGF4-KO"))
+
+ggplot(dftx, aes(x = X1426642_at, y = X1418765_at)) +
+  geom_point() + facet_grid( . ~ lineage )
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+ggplot(dftx,
+  aes(x = X1426642_at, y = X1418765_at)) + geom_point() +
+   facet_grid( Embryonic.day ~ lineage )
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+ggplot(mutate(dftx, Tdgf1 = cut(X1450989_at, breaks = 4)),
+   aes(x = X1426642_at, y = X1418765_at)) + geom_point() +
+   facet_wrap( ~ Tdgf1, ncol = 2 )
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+library("plotly")
+plot_ly(economics, x = ~ date, y = ~ unemploy / pop)
+
+```
+
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+data("volcano")
+volcanoData = list(
+  x = 10 * seq_len(nrow(volcano)),
+  y = 10 * seq_len(ncol(volcano)),
+  z = volcano,
+  col = terrain.colors(500)[cut(volcano, breaks = 500)]
+)
+library("rgl")
+with(volcanoData, persp3d(x, y, z, color = col))
+
+```
+
+
+```{r}
+
+## -----------------------------------------------------------------------------
+.volcanocut = cut(volcano, breaks = 500)
+stopifnot(!any(is.na(.volcanocut)), all(as.integer(.volcanocut) %in% 1:500))
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+par(mai = rep(0, 4)) # A numerical vector of the form c(bottom, left, top, right) which gives the margin size specified in inches.
+pie(rep(1, 8), col=1:8)
+
+```
+
+```{r}
+tibble(u = factor(1:8), v = 1)
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+ggplot(tibble(u = factor(1:8), v = 1), 
+       aes(x = "",  y = v, fill = u)) +
+  geom_bar(stat = "identity", width = 1) + 
+  coord_polar("y", start = 0) + theme_void()
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+par(mai = c(0, 0.8, 0, 0))
+display.brewer.all()
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+head(brewer.pal.info)
+
+```
+
+```{r}
+table(brewer.pal.info$category)
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+brewer.pal(4, "RdYlGn") #Creates nice looking color palettes especially for thematic maps
+
+## -----------------------------------------------------------------------------
+par(mai = rep(0.1, 4))
+mypalette  = colorRampPalette(
+    c("darkorange3", "white","darkblue")
+  )(100)
+head(mypalette)
+```
+
+```{r}
+
+image(matrix(1:100, nrow = 100, ncol = 10), col = mypalette,
+        xaxt = "n", yaxt = "n", useRaster = TRUE)
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+library("pheatmap")
+topGenes = order(rowVars(Biobase::exprs(x)), decreasing = TRUE)[1:500]
+rowCenter = function(x) { x - rowMeans(x) }
+pheatmap( rowCenter(Biobase::exprs(x)[ topGenes, ] ),
+  show_rownames = FALSE, show_colnames = FALSE,
+  breaks = seq(-5, +5, length = 101),
+  annotation_col =
+    pData(x)[, c("sampleGroup", "Embryonic.day", "ScanDate") ],
+  annotation_colors = list(
+    sampleGroup = groupColor,
+    genotype = c(`FGF4-KO` = "chocolate1", `WT` = "azure2"),
+    Embryonic.day = setNames(brewer.pal(9, "Blues")[c(3, 6, 9)],
+                             c("E3.25", "E3.5", "E4.5")),
+    ScanDate = setNames(brewer.pal(nlevels(x$ScanDate), "YlGn"),
+                        levels(x$ScanDate))
+  ),
+  cutree_rows = 4
+)
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+groupColor[1]
+
+## -----------------------------------------------------------------------------
+hexvals = sapply(1:3, function(i) substr(groupColor[1], i*2, i*2+1))
+decvals = strtoi(paste0("0x", hexvals))
+
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+library("colorspace")
+library("grid")
+
+plothcl = function(h, c, l, what, x0 = 0.5, y0 = 0.5, default.units = "npc", ...) {
+  switch(what,
+         "c" = {
+           stopifnot(length(l)==1)
+           n = length(c)
+         },
+         "l" = {
+           stopifnot(length(c)==1)
+           n = length(l)
+         },
+         stop("Sapperlot"))
+
+  cr = seq(0.1, 0.5, length = n+1)
+  dr = 0.05 / n
+
+  for (j in seq_len(n)) {
+    r = c(cr[j]+dr, cr[j+1]-dr)
+    for(i in 1:(length(h)-1)){
+      phi = seq(h[i], h[i+1], by=1)/180*pi
+      px = x0 + c(r[1]*cos(phi), r[2]*rev(cos(phi)))
+      py = y0 + c(r[1]*sin(phi), r[2]*rev(sin(phi)))
+      mycol = switch(what,
+        "c" = hcl(h=mean(h[i+(0:1)]), c=c[j], l=l),
+        "l" = hcl(h=mean(h[i+(0:1)]), c=c, l=l[j]))
+      grid::grid.polygon(px, py, 
+                         gp=gpar(col=mycol, fill=mycol),
+                         default.units=default.units,...)
+    }
+  }
+}
+
+
+## -----------------------------------------------------------------------------
+plothcl( h = seq(0, 360, by=3), c = seq(5, 75, by=10), l = 75,   what="c")
+grid.newpage()
+plothcl( h = seq(0, 360, by=3), c = 55, l = seq(20, 100, by=10), what="l")
+
+```
+
+
+```{r}
+## -----------------------------------------------------------------------------
+gg = ggplot(tibble(A = Biobase::exprs(x)[, 1], M = rnorm(length(A))),
+            aes(y = M))
+gg + geom_point(aes(x = A), size = 0.2)
+```
+
+```{r}
+
+
+gg + geom_point(aes(x = rank(A)), size = 0.2)
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+volume = function(rho, nu)
+            pi^(nu/2) * rho^nu / gamma(nu/2+1)
+
+ggplot(tibble(nu    = 1:15,
+  Omega = volume(1, nu)), aes(x = nu, y = Omega)) +
+geom_line() +
+xlab(expression(nu)) + ylab(expression(Omega)) +
+geom_text(label =
+"Omega(rho,nu)==frac(pi^frac(nu,2)~rho^nu, Gamma(frac(nu,2)+1))",
+  parse = TRUE, x = 6, y = 1.5)
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+ggplot(genes, aes( x = value, color = gene)) + stat_ecdf() +
+  theme(text = element_text(family = "serif"))
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+ggplot(genes, aes( x = value, color = gene)) + stat_ecdf() + theme(text = element_text(family = "Bauhaus 93"))
+
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+library("ggbio")
+data("hg19IdeogramCyto", package = "biovizBase")
+plotIdeogram(hg19IdeogramCyto, subchr = "chr1")
+```
+
+```{r}
+
+
+
+## -----------------------------------------------------------------------------
+library("GenomicRanges")
+data("darned_hg19_subset500", package = "biovizBase")
+autoplot(darned_hg19_subset500, layout = "karyogram",
+         aes(color = exReg, fill = exReg))
+```
+
+```{r}
+
+
+## -----------------------------------------------------------------------------
+data("ideoCyto", package = "biovizBase")
+dn = darned_hg19_subset500
+seqlengths(dn) = seqlengths(ideoCyto$hg19)[names(seqlengths(dn))]
+dn = keepSeqlevels(dn, paste0("chr", c(1:22, "X")))
+autoplot(dn, layout = "karyogram", aes(color = exReg, fill = exReg))
+```
+
+```{r}
+
+## -----------------------------------------------------------------------------
+darned_hg19_subset500[1:2,]
+```
+
+```{r}
+
+
+
+## -----------------------------------------------------------------------------
+stopifnot(is(darned_hg19_subset500, "GRanges"), identical(start(darned_hg19_subset500),end(darned_hg19_subset500)))
+
+## -----------------------------------------------------------------------------
+ggcars = ggplot(mtcars, aes(x = hp, y = mpg)) + geom_point(size = 5, color = 'red')
+ggcars
+ggcars + theme_bw()
+ggcars + theme_minimal()
+
+```
