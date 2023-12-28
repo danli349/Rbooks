@@ -1,0 +1,302 @@
+---
+title: "Chapter 15 S4"
+output: html_document
+date: "2023-08-17"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Chapter 15 S4
+
+```{r}
+library(methods)
+setClass("Person", 
+  slots = c(
+    name = "character", 
+    age = "numeric"
+  )
+)
+```
+
+```{r}
+john <- new("Person", name = "John Smith", age = NA_real_)
+is(john)
+#> [1] "Person"
+john@name
+#> [1] "John Smith"
+john@age
+slot(john, "age")
+#> [1] NA
+```
+
+```{r}
+setGeneric("age", function(x) standardGeneric("age"))
+setGeneric("age<-", function(x, value) standardGeneric("age<-"))
+```
+
+```{r}
+setMethod("age", "Person", function(x) x@age)
+setMethod("age<-", "Person", function(x, value) {
+  x@age <- value
+  x
+})
+
+age(john) <- 50
+age(john)
+#> [1] 50
+```
+
+```{r}
+sloop::otype(john)
+#> [1] "S4"
+sloop::ftype(age)
+#> [1] "S4"      "generic"
+```
+
+```{r}
+setClass("Person", 
+  slots = c(
+    name = "character", 
+    age = "numeric"
+  ), 
+  prototype = list(
+    name = NA_character_,
+    age = NA_real_
+  )
+)
+
+me <- new("Person", name = "Hadley")
+str(me)
+#> Formal class 'Person' [package ".GlobalEnv"] with 2 slots
+#>   ..@ name: chr "Hadley"
+#>   ..@ age : num NA
+```
+```{r}
+me
+```
+```{r}
+setClass("Employee", 
+  contains = "Person", 
+  slots = c(
+    boss = "Person"
+  ),
+  prototype = list(
+    boss = new("Person")
+  )
+)
+
+str(new("Employee"))
+#> Formal class 'Employee' [package ".GlobalEnv"] with 3 slots
+#>   ..@ boss:Formal class 'Person' [package ".GlobalEnv"] with 2 slots
+#>   .. .. ..@ name: chr NA
+#>   .. .. ..@ age : num NA
+#>   ..@ name: chr NA
+#>   ..@ age : num NA
+```
+
+```{r}
+new("Employee")
+```
+
+```{r}
+is(new("Person"))
+#> [1] "Person"
+is(new("Employee"))
+#> [1] "Employee" "Person"
+```
+
+```{r}
+setClass("A", slots = c(x = "numeric"))
+a <- new("A", x = 10)
+a
+
+#> An object of class "A"
+#> Slot "a_different_slot":
+#> Error in slot(object, what): no slot of name "a_different_slot" for this object
+#> of class "A"
+```
+```{r}
+setClass("A", slots = c(a_different_slot = "numeric"))
+a
+```
+
+```{r}
+Person <- function(name, age = NA) {
+  age <- as.double(age)
+  
+  new("Person", name = name, age = age)
+}
+
+Person("Hadley")
+#> An object of class "Person"
+#> Slot "name":
+#> [1] "Hadley"
+#> 
+#> Slot "age":
+#> [1] NA
+```
+
+
+```{r}
+Person("Hadley", age = c(30, 37))
+#> An object of class "Person"
+#> Slot "name":
+#> [1] "Hadley"
+#> 
+#> Slot "age":
+#> [1] 30 37
+```
+
+```{r}
+setValidity("Person", function(object) {
+  if (length(object@name) != length(object@age)) {
+    "@name and @age must be same length"
+  } else {
+    TRUE
+  }
+})
+```
+
+```{r}
+Person("Hadley", age = c(30, 37))
+#> Error in validObject(.Object): invalid class "Person" object: @name and @age
+#> must be same length
+```
+
+```{r}
+alex <- Person("Alex", age = 30)
+alex@age <- 1:10
+validObject(alex)
+#> Error in validObject(alex): invalid class "Person" object: @name and @age must
+#> be same length
+```
+
+```{r}
+setGeneric("myGeneric", function(x) standardGeneric("myGeneric"))
+```
+
+```{r}
+# Don't do this!
+setGeneric("myGeneric", function(x) {
+  standardGeneric("myGeneric")
+})
+```
+
+```{r}
+setGeneric("myGeneric", 
+  function(x, ..., verbose = TRUE) standardGeneric("myGeneric"),
+  signature = "x"
+)
+```
+
+```{r}
+setMethod("myGeneric", "Person", function(x) {
+  # method implementation
+})
+```
+
+
+```{r}
+args(getGeneric("show"))
+#> function (object) 
+#> NULL
+```
+
+```{r}
+setMethod("show", "Person", function(object) {
+  cat(is(object)[[1]], "\n",
+      "  Name: ", object@name, "\n",
+      "  Age:  ", object@age, "\n",
+      sep = ""
+  )
+})
+john
+#> Person
+#>   Name: John Smith
+#>   Age:  50
+```
+
+```{r}
+person_name <- function(x) x@name
+```
+
+```{r}
+setGeneric("name", function(x) standardGeneric("name"))
+setMethod("name", "Person", function(x) x@name)
+
+name(john)
+#> [1] "John Smith"
+```
+
+```{r}
+setGeneric("name<-", function(x, value) standardGeneric("name<-"))
+setMethod("name<-", "Person", function(x, value) {
+  x@name <- value
+  validObject(x)
+  x
+})
+
+name(john) <- "Jon Smythe"
+name(john)
+#> [1] "Jon Smythe"
+
+name(john) <- letters
+#> Error in validObject(x): invalid class "Person" object: @name and @age must be
+#> same length
+```
+
+```{r}
+setOldClass("data.frame")
+setOldClass(c("ordered", "factor"))
+setOldClass(c("glm", "lm"))
+```
+
+```{r}
+setClass("factor",
+  contains = "integer",
+  slots = c(
+    levels = "character"
+  ),
+  prototype = structure(
+    integer(),
+    levels = character()
+  )
+)
+setOldClass("factor", S4Class = "factor")
+```
+
+```{r}
+RangedNumeric <- setClass(
+  "RangedNumeric",
+  contains = "numeric",
+  slots = c(min = "numeric", max = "numeric"),
+  prototype = structure(numeric(), min = NA_real_, max = NA_real_)
+)
+rn <- RangedNumeric(1:10, min = 1, max = 10)
+rn@min
+#> [1] 1
+rn@.Data
+#>  [1]  1  2  3  4  5  6  7  8  9 10
+```
+
+```{r}
+setGeneric("mean")
+```
+
+```{r}
+selectMethod("mean", "ANY")
+#> Method Definition (Class "derivedDefaultMethod"):
+#> 
+#> function (x, ...) 
+#> UseMethod("mean")
+#> <bytecode: 0x7f7fad935c68>
+#> <environment: namespace:base>
+#> 
+#> Signatures:
+#>         x    
+#> target  "ANY"
+#> defined "ANY"
+```
+

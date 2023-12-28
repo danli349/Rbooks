@@ -1,0 +1,167 @@
+---
+title: "Chapter 13 S3"
+output: html_document
+date: "2023-08-16"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Chapter 13 S3
+
+
+```{r}
+library(sloop)
+f <- factor(c("a", "b", "c"))
+typeof(f)
+#> [1] "integer"
+attributes(f)
+attr(f, 'class')
+attr(f, 'levels')
+```
+
+```{r}
+unclass(f)
+#> [1] 1 2 3
+```
+
+```{r}
+ftype(print)
+#> [1] "S3" "generic"
+ftype(str)
+#> [1] "S3" "generic"
+ftype(unclass)
+#> [1] "primitive"
+```
+
+```{r}
+print(f)
+#> [1] a b c
+#> Levels: a b c
+# stripping class reverts to integer behaviour
+print(unclass(f))
+#> [1] 1 2 3
+#> attr(,"levels")
+#> [1] "a" "b" "c"
+
+```
+
+```{r}
+time <- strptime(c("2017-01-01", "2020-05-04 03:21"), "%Y-%m-%d")
+str(time)
+#> POSIXlt[1:2], format: "2017-01-01" "2020-05-04"
+```
+
+```{r}
+unclass(time)
+```
+
+```{r}
+str(unclass(time))
+```
+
+```{r}
+s3_dispatch(print(f))
+
+```
+
+```{r}
+ftype(t.test)
+#> [1] "S3" "generic"
+ftype(t.data.frame)
+ftype(t)
+```
+
+```{r}
+new_Date <- function(x = double()) {
+stopifnot(is.double(x))
+structure(x, class = "Date")
+}
+new_Date(c(-1, 0, 1))
+print(new_Date(c(-1, 0, 1)))
+```
+
+```{r}
+match.arg("secs", c("secs", "mins", "hours", "days", "weeks"))
+match.arg("secends", c("secs", "mins", "hours", "days", "weeks"))
+```
+
+```{r}
+new_difftime <- function(x = double(), units = "secs") {
+stopifnot(is.double(x))
+units <- match.arg(units, c("secs", "mins", "hours", "days", "weeks"))
+structure(x,
+class = "difftime",
+units = units
+)
+}
+new_difftime(c(1, 10, 3600), "secs")
+#> Time differences in secs
+#> [1] 1 10 3600
+new_difftime(52, "weeks")
+```
+
+
+```{r}
+difftime <- function(x = double(), units = "secs") {
+x <- as.double(x)
+new_difftime(x, units = units)
+}
+difftime(1:10)
+```
+
+```{r}
+new_factor <- function(x = integer(), levels = character()) {
+stopifnot(is.integer(x))
+stopifnot(is.character(levels))
+structure(
+x,
+levels = levels,
+class = "factor"
+)
+}
+
+validate_factor <- function(x) {
+values <- unclass(x)
+levels <- attr(x, "levels")
+if (!all(!is.na(values) & values > 0)) {
+stop(
+"All `x` values must be non-missing and greater than zero",
+call. = FALSE
+)
+}
+if (length(levels) < max(values)) {
+stop(
+"There must at least as many `levels` as possible values in `x`",
+call. = FALSE
+)
+}
+x
+}
+
+factor <- function(x = character(), levels = unique(x)) {
+ind <- match(x, levels)
+validate_factor(new_factor(ind, levels))
+}
+factor(c("a", "a", "b"))
+```
+
+```{r}
+match(c("a", "a", "b"), unique(c("a", "a", "b")))
+```
+
+```{r}
+POSIXct <- function(year = integer(),
+month = integer(),
+day = integer(),
+hour = 0L,
+minute = 0L,
+sec = 0,
+tzone = "") {
+ISOdatetime(year, month, day, hour, minute, sec, tz = tzone)
+}
+POSIXct(2020, 1, 1, 12, 30, tzone = "America/New_York")
+
+```
+

@@ -1,0 +1,24 @@
+---
+title: 'Chapter 12 Base types'
+output: html_document
+date: "2023-08-15"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##  
+
+```{r}
+library(sloop)
+otype(1:10)
+otype(mtcars)
+```
+
+```{r}
+mle_obj <- stats4::mle(function(x = 1) (x - 2) ^ 2)
+mle_obj
+otype(mle_obj)
+```
+ 

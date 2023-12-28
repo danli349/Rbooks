@@ -1,0 +1,681 @@
+---
+title: "Chapter 19 Quasiquotation"
+output: html_document
+date: "2023-08-19"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+```
+
+## Chapter 19 Quasiquotation
+
+
+```{r}
+library(rlang)
+library(purrr)
+```
+
+```{r}
+paste("Good", "morning", "Hadley")
+#> [1] "Good morning Hadley"
+paste("Good", "afternoon", "Alice")
+#> [1] "Good afternoon Alice"
+```
+
+```{r}
+cement <- function(...) {
+  args <- ensyms(...)
+  paste(purrr::map(args, as_string), collapse = " ")
+}
+
+cement(Good, morning, Hadley)
+#> [1] "Good morning Hadley"
+cement(Good, afternoon, Alice)
+#> [1] "Good afternoon Alice"
+```
+
+```{r}
+name <- "Hadley"
+time <- "morning"
+
+paste("Good", time, name)
+#> [1] "Good morning Hadley"
+```
+
+```{r}
+cement(Good, time, name)
+#> [1] "Good time name"
+```
+
+```{r}
+cement(Good, !!time, !!name)
+#> [1] "Good morning Hadley"
+```
+```{r}
+paste("Good", time, name)
+cement(Good, !!time, !!name)
+```
+
+```{r}
+# works
+library(MASS)
+
+# fails
+MASS
+#> Error in eval(expr, envir, enclos): object 'MASS' not found
+```
+
+```{r}
+expr(x + y)
+#> x + y
+expr(1 / 2 / 3)
+#> 1/2/3
+```
+
+```{r}
+f1 <- function(x) expr(x)
+f1(a + b + c)
+#> x
+```
+
+```{r}
+f2 <- function(x) enexpr(x)
+f2(a + b + c)
+#> a + b + c
+```
+
+```{r}
+f <- function(...) enexprs(...)
+f(x = 1, y = 10 * z)
+#> $x
+#> [1] 1
+#> 
+#> $y
+#> 10 * z
+```
+
+```{r}
+exprs(x = x ^ 2, y = y ^ 3, z = z ^ 4)
+# shorthand for
+# list(x = expr(x ^ 2), y = expr(y ^ 3), z = expr(z ^ 4))
+```
+
+```{r}
+f <- function(...) ensyms(...)
+f(x)
+#> [[1]]
+#> x
+f(x, y, z)
+f("x")
+#> [[1]]
+#> x
+```
+
+```{r}
+quote(x + y)
+#> x + y
+
+```
+
+```{r}
+f3 <- function(x) substitute(x)
+f3(x + y)
+#> x + y
+```
+
+```{r}
+x <- 2
+alist(x = 1, y = x + 2)
+exprs(x = 1, y = x + 2)
+#> $x
+#> [1] 1
+#> 
+#> $y
+#> x + 2
+```
+
+```{r}
+f <- function(...) as.list(substitute(...()))
+f(x = 1, y = 10 * z)
+#> $x
+#> [1] 1
+#> 
+#> $y
+#> 10 * z
+```
+
+```{r}
+f <- function(...) substitute(...())
+f(x = 1, y = 10 * z)
+#> $x
+#> [1] 1
+#> 
+#> $y
+#> 10 * z
+```
+
+```{r}
+f <- function(...) substitute(...)
+f(x = 1, y = 10 * z)
+```
+
+```{r}
+f4 <- function(x) substitute(x * 2)
+f4(a + b + c)
+#> (a + b + c) * 2
+```
+
+```{r}
+substitute(x * y * z, list(x = 10, y = quote(a + b)))
+#> 10 * (a + b) * z
+```
+
+```{r}
+x <- expr(-1)
+x
+expr(f(!!x, y))
+expr(f(x, y))
+
+#> f(-1, y)
+```
+
+```{r}
+a <- sym("y")
+a
+b <- 1
+expr(f(!!a, !!b))
+#> f(y, 1)
+```
+
+
+```{r}
+a <- sym("y")
+a
+```
+
+```{r}
+mean_rm <- function(var) {
+  var <- ensym(var)
+  expr(mean(!!var, na.rm = TRUE))
+}
+expr(!!mean_rm(x) + !!mean_rm(y))
+#> mean(x, na.rm = TRUE) + mean(y, na.rm = TRUE)
+```
+
+```{r}
+x1 <- expr(x + 1)
+x2 <- expr(x + 2)
+
+expr(!!x1 / !!x2)
+#> (x + 1)/(x + 2)
+```
+
+```{r}
+f <- expr(foo)
+f
+expr((!!f)(x, y))
+
+expr(!!f(x, y))
+#> foo(x, y)
+```
+
+```{r}
+f <- expr(pkg::foo)
+expr((!!f)(x, y))
+#> pkg::foo(x, y)
+```
+
+```{r}
+arg <- missing_arg()
+expr(foo(!!arg, !!arg))
+#> Error in enexpr(expr): argument "arg" is missing, with no default
+```
+
+```{r}
+expr(foo(!!maybe_missing(arg), !!maybe_missing(arg)))
+#> foo(, )
+```
+
+```{r}
+expr(foo(!!maybe_missing(arg), !!maybe_missing(arg)))
+#> foo(, )
+```
+
+```{r}
+expr(df$!!x)
+#> Error: unexpected '!' in "expr(df$!"
+```
+
+```{r}
+x <- expr(x)
+x
+expr(`$`(df, !!x))
+#> df$x
+```
+
+```{r}
+x <- expr(3)
+x
+expr(`$`(df, !!x))
+#> df$x
+```
+
+```{r}
+x <- expr(y)
+x
+expr(`$`(df, !!x))
+#> df$x
+```
+
+```{r}
+xs <- exprs(1, a, -b)
+
+expr(f(!!!xs, y))
+#> f(1, a, -b, y)
+
+# Or with names
+ys <- set_names(xs, c("a", "b", "c"))
+expr(f(!!!ys, d = 4))
+#> f(a = 1, b = a, c = -b, d = 4)
+```
+
+```{r}
+call2("f", !!!xs, expr(y))
+#> f(1, a, -b, y)
+```
+
+```{r}
+!!TRUE
+#> [1] TRUE
+!!!TRUE
+#> [1] FALSE
+```
+
+```{r}
+x <- quote(variable)
+!!x
+#> Error in !x: invalid argument type
+```
+
+```{r}
+df <- data.frame(x = 1:5)
+y <- 100
+with(df, x + !!y)
+expr(with(df, x + !!y))
+with(df, x + y)
+#> [1] 2 3 4 5 6
+```
+
+```{r}
+x1 <- expr(class(!!data.frame(x = 10)))
+x1
+#> class(list(x = 10))
+eval(x1)
+#> [1] "data.frame"
+```
+
+```{r}
+expr_print(x1)
+#> class(<df[,1]>)
+lobstr::ast(!!x1)
+#> █─class 
+#> └─<inline data.frame>
+```
+
+```{r}
+c(1L, 2L, 3L, 4L, 5L)
+expr(f(c(1L, 2L, 3L, 4L, 5L)))
+expr(f(!!c(1L, 2L, 3L, 4L, 5L)))
+
+```
+
+
+```{r}
+x2 <- expr(f(!!c(1L, 2L, 3L, 4L, 5L)))
+x2
+#> f(1:5)
+expr_print(x2)
+#> f(<int: 1L, 2L, 3L, 4L, 5L>)
+lobstr::ast(!!x2)
+#> █─f 
+#> └─<inline integer>
+```
+
+```{r}
+expr(1 + expr(2 + 3))
+expr(1 + !!expr(2 + 3))
+```
+
+```{r}
+x3 <- expr(1 + !!expr(2 + 3))
+x3
+#> 1 + (2 + 3)
+
+lobstr::ast(!!x3)
+#> █─`+` 
+#> ├─1 
+#> └─█─`+` 
+#>   ├─2 
+#>   └─3
+```
+
+```{r}
+bquote((x + y + z))
+
+```
+
+```{r}
+xyz <- bquote((x + y + z))
+bquote(-.(xyz) / 2)
+#> -(x + y + z)/2
+```
+
+```{r}
+x <- list(var = 1, y = 2)
+var <- "y"
+eval(var)
+x$var
+`$`(x, var)
+`$`(x, "var")
+
+x[[var]]
+`$`(x, "y")
+`$`(x, eval(var))
+```
+
+```{r}
+x <- 1
+rm(x)
+
+y <- 2
+vars <- c("y", "vars")
+rm(list = vars)
+vars
+```
+
+```{r}
+library(MASS)
+
+pkg <- "MASS"
+library(pkg, character.only = TRUE)
+```
+
+```{r}
+# Shows help for var
+help(var)
+```
+
+
+```{r}
+
+var <- "mean"
+# Shows help for mean
+help(var)
+
+```
+
+```{r}
+
+var <- 10
+# Shows help for var
+help(var)
+var
+```
+
+```{r}
+palette(RColorBrewer::brewer.pal(3, "Set1"))
+plot(
+  Sepal.Length ~ Petal.Length, 
+  data = iris, 
+  col = Species, 
+  pch = 20, 
+  cex = 2
+)
+```
+
+```{r}
+dfs <- list(
+  a = data.frame(x = 1, y = 2),
+  b = data.frame(x = 3, y = 4)
+)
+dfs
+```
+
+```{r}
+var <- "x"
+var
+val <- c(4, 3, 9)
+val
+```
+
+```{r}
+dplyr::bind_rows(!!!dfs)
+#>   x y
+#> 1 1 2
+#> 2 3 4
+```
+
+```{r}
+dplyr::bind_rows(dfs)
+```
+```{r}
+var
+val
+eval(var)
+```
+
+```{r}
+
+tibble::tibble(!!var := val)
+#> # A tibble: 3 x 1
+#>       x
+#>   <dbl>
+#> 1     4
+#> 2     3
+#> 3     9
+```
+```{r}
+tibble::tibble(!!var := val)
+```
+
+```{r}
+# Directly
+exec("mean", x = 1:10, na.rm = TRUE, trim = 0.1)
+#> [1] 5.5
+
+# Indirectly
+args <- list(x = 1:10, na.rm = TRUE, trim = 0.1)
+exec("mean", !!!args)
+#> [1] 5.5
+
+# Mixed
+params <- list(na.rm = TRUE, trim = 0.1)
+exec("mean", x = 1:10, !!!params)
+#> [1] 5.5
+```
+
+```{r}
+arg_name <- "na.rm"
+arg_val <- TRUE
+exec("mean", 1:10, !!arg_name := arg_val)
+#> [1] 5.5
+```
+
+```{r}
+arg_name <- "na.rm"
+arg_val <- TRUE
+exec("mean", 1:10, !!arg_name := arg_val)
+#> [1] 5.5
+```
+
+```{r}
+x <- c(runif(10), NA)
+funs <- c("mean", "median", "sd")
+
+purrr::map_dbl(funs, exec, x, na.rm = TRUE)
+#> [1] 0.444 0.482 0.298
+```
+
+```{r}
+map(funs, exec, x, na.rm = TRUE)
+```
+
+```{r}
+# Can easily move x to first entry:
+tibble::tibble(
+  y = 1:5,
+  z = 3:-1,
+  x = 5:1,
+)
+
+# Need to remove comma from z and add comma to x
+data.frame(
+  y = 1:5,
+  z = 3:-1,
+  x = 5:1
+)
+```
+
+```{r}
+str(dots_list(x = 1, x = 2))
+#> List of 2
+#>  $ x: num 1
+#>  $ x: num 2
+str(dots_list(x = 1, x = 2, .homonyms = "first"))
+#> List of 1
+#>  $ x: num 1
+str(dots_list(x = 1, x = 2, .homonyms = "last"))
+#> List of 1
+#>  $ x: num 2
+str(dots_list(x = 1, x = 2, .homonyms = "error"))
+#> Error: Arguments can't have the same name.
+#> We found multiple arguments named `x` at positions 1 and 2
+```
+
+```{r}
+dfs
+```
+
+```{r}
+map(dfs, rbind)
+```
+
+```{r}
+do.call("rbind", dfs)
+#>   x y
+#> a 1 2
+#> b 3 4
+```
+
+```{r}
+args <- list(val)
+args
+#>   x
+#> 1 4
+#> 2 3
+#> 3 9
+```
+
+```{r}
+names(args) <- var
+args
+
+```
+
+```{r}
+map(args, data.frame)
+```
+
+```{r}
+do.call("data.frame", args)
+```
+
+```{r}
+list(missing_arg())
+list(missing_arg(), missing_arg())
+```
+
+```{r}
+rep(list(missing_arg()), 3)
+```
+
+```{r}
+indices <- rep(list(missing_arg()), 3)
+expr(x[!!!indices])
+#> x[, , ]
+```
+
+
+```{r}
+indices[[2]] <- 1
+expr(x[!!!indices])
+#> x[, 1, ]
+```
+
+```{r}
+slice <- function(x, along, index) {
+  stopifnot(length(along) == 1)
+  stopifnot(length(index) == 1)
+    
+  nd <- length(dim(x))
+  indices <- rep(list(missing_arg()), nd)
+  indices[[along]] <- index
+  
+  expr(x[!!!indices])
+}
+
+x <- array(sample(30), c(5, 2, 3))
+slice(x, 1, 3)
+#> x[3, , ]
+slice(x, 2, 2)
+#> x[, 2, ]
+slice(x, 3, 1)
+#> x[, , 1]
+```
+
+```{r}
+new_function(
+  exprs(x = , y = ), 
+  expr({x + y})
+)
+#> function (x, y) 
+#> {
+#>     x + y
+#> }
+```
+
+```{r}
+power <- function(exponent) {
+  new_function(
+    exprs(x = ), 
+    expr({
+      x ^ !!exponent
+    }), 
+    caller_env()
+  )
+}
+power(0.5)
+#> function (x) 
+#> {
+#>     x^0.5
+#> }
+```
+
+```{r}
+curve(sin(exp(4 * x)), n = 1000)
+```
+```{r}
+curve2 <- function(expr, xlim = c(0, 1), n = 100) {
+  expr <- enexpr(expr)
+  f <- new_function(exprs(x = ), expr)
+  
+  x <- seq(xlim[1], xlim[2], length = n)
+  y <- f(x)
+
+  plot(x, y, type = "l", ylab = expr_text(expr))
+}
+curve2(sin(exp(4 * x)), n = 1000)
+```
+

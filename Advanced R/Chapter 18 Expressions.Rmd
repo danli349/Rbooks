@@ -1,0 +1,303 @@
+---
+title: "Chapter 18 Expressions"
+output: html_document
+date: "2023-08-18"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Chapter 18 Expressions
+
+```{r}
+z <- rlang::expr(y <- x * 10)
+z
+y
+#> y <- x * 10
+```
+
+```{r}
+x <- 4
+eval(z)
+y
+z
+#> [1] 40
+```
+
+```{r}
+library(rlang)
+library(lobstr)
+```
+
+```{r}
+lobstr::ast(f(x, "y", 1))
+#> █─f 
+#> ├─x 
+#> ├─"y" 
+#> └─1
+```
+
+```{r}
+lobstr::ast(f(g(1, 2), h(3, 4, i())))
+#> █─f 
+#> ├─█─g 
+#> │ ├─1 
+#> │ └─2 
+#> └─█─h 
+#>   ├─3 
+#>   ├─4 
+#>   └─█─i
+```
+
+```{r}
+lobstr::ast(y <- x)
+#> █─`<-` 
+#> ├─y 
+#> └─x
+lobstr::ast(y < -x)
+#> █─`<` 
+#> ├─y 
+#> └─█─`-` 
+#>   └─x
+```
+```{r}
+lobstr::ast(y <- x * 10)
+#> █─`<-` 
+#> ├─y 
+#> └─█─`*` 
+#>   ├─x 
+#>   └─10
+```
+
+```{r}
+ast(f(g(h(i(1, 2, 3)))))
+ast(f(1, g(2, h(3, i()))))
+ast(f(g(1, 2), h(3, i(4, 5))))
+```
+
+```{r}
+identical(expr(TRUE), TRUE)
+#> [1] TRUE
+identical(expr(1), 1)
+#> [1] TRUE
+identical(expr(2L), 2L)
+#> [1] TRUE
+identical(expr("x"), "x")
+#> [1] TRUE
+```
+
+```{r}
+x
+expr("x")
+expr(x)
+identical(expr("x"), x)
+```
+
+```{r}
+expr(x)
+#> x
+sym("x")
+#> x
+```
+
+```{r}
+as_string(expr(x))
+#> [1] "x"
+#> 
+str(expr(x))
+#>  symbol x
+is.symbol(expr(x))
+#> [1] TRUE
+```
+
+```{r}
+lobstr::ast(read.table("important.csv", row.names = FALSE))
+#> █─read.table 
+#> ├─"important.csv" 
+#> └─row.names = FALSE
+x <- expr(read.table("important.csv", row.names = FALSE))
+
+typeof(x)
+#> [1] "language"
+is.call(x)
+#> [1] TRUE
+```
+
+```{r}
+x[[1]]
+#> read.table
+is.symbol(x[[1]])
+#> [1] TRUE
+```
+
+```{r}
+as.list(x[-1])
+#> [[1]]
+#> [1] "important.csv"
+#> 
+#> $row.names
+#> [1] FALSE
+```
+
+```{r}
+as.list(x)
+```
+```{r}
+x[[2]]
+#> [1] "important.csv"
+x$row.names
+#> [1] FALSE
+```
+
+```{r}
+length(x) - 1
+#> [1] 2
+```
+
+```{r}
+rlang::call_standardise(x)
+#> read.table(file = "important.csv", row.names = FALSE)
+```
+
+```{r}
+lobstr::ast("foo"())
+#> █─foo
+```
+
+```{r}
+lobstr::ast(pkg::foo(1))
+#> █─█─`::` 
+#> │ ├─pkg 
+#> │ └─foo 
+#> └─1
+lobstr::ast(obj$foo(1))
+#> █─█─`$` 
+#> │ ├─obj 
+#> │ └─foo 
+#> └─1
+lobstr::ast(foo(1)(2))
+#> █─█─foo 
+#> │ └─1 
+#> └─2
+```
+
+```{r}
+call2("mean", x = expr(x), na.rm = TRUE)
+#> mean(x = x, na.rm = TRUE)
+call2(expr(base::mean), x = expr(x), na.rm = TRUE)
+#> base::mean(x = x, na.rm = TRUE)
+```
+
+```{r}
+call2("<-", expr(x), 10)
+#> x <- 10
+```
+
+```{r}
+lobstr::ast(1 + 2 + 3)
+#> █─`+` 
+#> ├─█─`+` 
+#> │ ├─1 
+#> │ └─2 
+#> └─3
+```
+
+```{r}
+lobstr::ast(2^2^3)
+#> █─`^` 
+#> ├─2 
+#> └─█─`^` 
+#>   ├─2 
+#>   └─3
+lobstr::ast(x <- y <- z)
+#> █─`<-` 
+#> ├─x 
+#> └─█─`<-` 
+#>   ├─y 
+#>   └─z
+```
+
+```{r}
+x1 <- "y <- x + 10"
+x1
+#> [1] "y <- x + 10"
+is.call(x1)
+#> [1] FALSE
+
+x2 <- rlang::parse_expr(x1)
+x2
+#> y <- x + 10
+is.call(x2)
+#> [1] TRUE
+```
+
+```{r}
+x3 <- "a <- 1; a + 1"
+rlang::parse_exprs(x3)
+#> [[1]]
+#> a <- 1
+#> 
+#> [[2]]
+#> a + 1
+```
+
+```{r}
+parse(text = x1)
+```
+
+```{r}
+as.list(parse(text = x1))
+#> [[1]]
+#> y <- x + 10
+```
+
+```{r}
+z <- expr(y <- x + 10)
+z
+expr_text(z)
+#> [1] "y <- x + 10"
+```
+
+```{r}
+cat(expr_text(expr({
+  # This is a comment
+  x <-             `x` + 1
+})))
+#> {
+#>     x <- x + 1
+#> }
+```
+
+```{r}
+expr_type <- function(x) {
+  if (rlang::is_syntactic_literal(x)) {
+    "constant"
+  } else if (is.symbol(x)) {
+    "symbol"
+  } else if (is.call(x)) {
+    "call"
+  } else if (is.pairlist(x)) {
+    "pairlist"
+  } else {
+    typeof(x)
+  }
+}
+
+expr_type(expr("a"))
+#> [1] "constant"
+expr_type(expr(x))
+#> [1] "symbol"
+expr_type(expr(f(1, 2)))
+#> [1] "call"
+```
+
+```{r}
+expr("a")
+expr(a)
+expr(x)
+expr(f(1, 2))
+expr("f(1, 2)")
+expr_type(expr("f(1, 2)"))
+```
+

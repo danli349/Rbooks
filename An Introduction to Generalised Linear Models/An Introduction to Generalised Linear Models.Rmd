@@ -1,0 +1,4458 @@
+---
+title: 'An Introduction to Generalised Linear Models (4th edition)'
+output: html_document
+date: "2023-10-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+## Chapter2 Model Fitting 
+
+```{r}
+library(dobson)
+library(ggprism)
+library(tidyverse)
+birthweight
+dim(birthweight)
+```
+```{r}
+library(tidyverse)
+birthweight |> ggplot(aes(x=`boys gestational age`,
+                          y=`boys weight`)) + geom_point(shape=1, size=3) + 
+  geom_point(aes(x=`girls gestational age`, y=`girls weight`), shape=19, size=3) +
+  theme_bw() + theme(
+  # Hide panel borders and remove grid lines
+  #panel.border = element_line(colour = "black"),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  # Change axis line
+  #axis.line = element_line(colour = "black")
+) + xlab("Gestational age (weeks)") +
+  ylab("Birthweight (grams)")
+```
+
+```{r}
+birthweight |> summarise(boys_sum_x=sum(`boys gestational age`),
+                         boys_sum_y=sum(`boys weight`),
+                         boys_sum_x2=sum((`boys gestational age`)^2),
+                         boys_sum_y2=sum((`boys weight`)^2),
+                         boys_sum_xy=sum((`boys gestational age`)*(`boys weight`)),
+                         girls_sum_x=sum(`girls gestational age`),
+                         girls_sum_y=sum(`girls weight`),
+                         girls_sum_x2=sum((`girls gestational age`)^2),
+                         girls_sum_y2=sum((`girls weight`)^2),
+                         girls_sum_xy=sum((`girls gestational age`)*(`girls weight`))) |> 
+  pivot_longer(
+    cols = starts_with(c("boys", "girls")), 
+    names_to = "items", 
+    values_to = "values",
+    values_drop_na = TRUE
+  )
+```
+```{r}
+birthweight_summary <- birthweight |> summarise(boys_sum_x=sum(`boys gestational age`),
+                         boys_sum_y=sum(`boys weight`),
+                         boys_sum_x2=sum((`boys gestational age`)^2),
+                         boys_sum_y2=sum((`boys weight`)^2),
+                         boys_sum_xy=sum((`boys gestational age`)*(`boys weight`)),
+                         girls_sum_x=sum(`girls gestational age`),
+                         girls_sum_y=sum(`girls weight`),
+                         girls_sum_x2=sum((`girls gestational age`)^2),
+                         girls_sum_y2=sum((`girls weight`)^2),
+                         girls_sum_xy=sum((`girls gestational age`)*(`girls weight`)))
+birthweight_summary
+```
+```{r}
+#Table2.5
+K=dim(birthweight)[1]
+birthweight_summary |> summarise(b=(K*sum(boys_sum_xy,girls_sum_xy)-(sum(boys_sum_x*boys_sum_y, girls_sum_x*girls_sum_y)))/(K*sum(boys_sum_x2, girls_sum_x2)-(sum(boys_sum_x^2, girls_sum_x^2))),
+                                 a1=boys_sum_y/K-b*boys_sum_x/K,
+                                 a2=girls_sum_y/K-b*girls_sum_x/K,
+                                 b1=(K*boys_sum_xy-boys_sum_x*boys_sum_y)/(K*boys_sum_x2-boys_sum_x^2),
+                                 b2=(K*girls_sum_xy-girls_sum_x*girls_sum_y)/(K*girls_sum_x2-girls_sum_x^2),
+                                 a11=boys_sum_y/K-b1*boys_sum_x/K,
+                                 a22=girls_sum_y/K-b2*girls_sum_x/K,
+                                 S0=sum((birthweight$`boys weight`-a1-b*birthweight$`boys gestational age`)^2,
+                                        (birthweight$`girls weight`-a2-b*birthweight$`girls gestational age`)^2),
+                                 S1=sum((birthweight$`boys weight`-a11-b1*birthweight$`boys gestational age`)^2,
+                                        (birthweight$`girls weight`-a22-b2*birthweight$`girls gestational age`)^2),
+                                Fstatistic=((S0-S1)/(2-1))/(S1/(24-4)),
+                                p_value=pf(Fstatistic, df1=1, df2=20)
+                                  ) |> 
+  as.data.frame()
+```
+
+###  2.5 Exercises  
+
+#### 2.5.1  
+
+Genetically similar seeds are randomly assigned to be raised in either a
+nutritionally enriched environment (treatment group) or standard conditions
+(control group) using a completely randomized experimental design.
+After a predetermined time all plants are harvested, dried and weighed.
+The results, expressed in grams. 
+
+```{r}
+plants
+```
+
+Perform an unpaired t-test on these data and calculate a 95% confidence
+interval for the difference between the group means. Interpret these
+results.
+
+
+```{r}
+#unpaired t-test
+t1 <- t.test(plants$treatment, plants$control, var.equal = TRUE, data=plants)
+t1
+```
+
+```{r}
+t1$conf.int
+```
+
+```{r}
+#t
+sp <- sqrt((19*var(plants$treatment)+19*var(plants$control))/38)
+(mean(plants$treatment)-mean(plants$control))/(sp*sqrt(2/20))
+```
+
+```{r}
+#p-value
+2*(1-pt(0.5098476, df=38))
+```
+
+```{r}
+mean(plants$treatment)
+mean(plants$control)
+sum(plants$treatment+plants$control)/40
+mean(c(plants$treatment, plants$control))
+```
+
+```{r}
+c(plants$treatment, plants$control)
+```
+
+```{r}
+#S1 and S0
+S1 <- sum((plants$treatment-mean(plants$treatment))^2) + sum((plants$control-mean(plants$control))^2)
+S0 <- sum((c(plants$treatment, plants$control)-mean(c(plants$treatment, plants$control)))^2)
+S1
+S0
+```
+
+```{r}
+#F(1,38)
+(S0-S1)/(S1/38)
+```
+
+```{r}
+t <- (mean(plants$treatment)-mean(plants$control))/(sp*sqrt(2/20))
+t^2
+```
+
+#### 2.5.2 
+
+The weights, in kilograms, of twenty men before and after participation
+in a “waist loss” program are shown in Table 2.8 (Egger et al. 1999). We
+want to know if, on average, they retain a weight loss twelve months after
+the program. 
+
+```{r}
+waist
+```
+
+
+```{r}
+#unpaired t-test
+t1 <- t.test(waist$before, waist$after, var.equal = TRUE, data=waist)
+t1
+```
+
+
+```{r}
+#Dk
+Dk <- waist$before - waist$after
+EDk <- mean(Dk)
+EDk
+```
+
+```{r}
+#H0 is EDk = 0 and Dk ~ N(0, \sigma^2); H1 is EDk != 0 and Dk ~ N(EDk, \sigma^2)
+
+S0 <- sum(Dk^2)
+S1 <- sum((Dk-EDk)^2)
+```
+
+```{r}
+#F(1,19)
+(S0-S1)/(S1/19)
+```
+
+```{r}
+Fstatistic <- (S0-S1)/(S1/19)
+1-pf(Fstatistic, df1=1, df2=19)
+```
+
+```{r}
+#paired t-test
+t2 <- t.test(waist$before, waist$after, paired = TRUE, var.equal = TRUE, data=waist)
+t2
+```
+
+```{r}
+(t2$statistic)^2
+```
+
+## Chapter3 Exponential Family and Generalized Linear Models  
+
+### Exercises  
+
+####   3.6
+
+```{r}
+mortality
+```
+
+```{r}
+library(dplyr)
+mortality2 <- mortality %>%
+    mutate(
+        age=as.integer(stringr::str_split(as.character(`age group`), "-") %>% purrr::map_chr(., 1)),
+        death_rate = deaths*100000 / population,
+        log_age=log(age),
+        log_deaths=log(death_rate)
+    )
+mortality2
+```
+
+
+```{r}
+lmodel <- lm(log_deaths ~ log_age, data = mortality2)
+lmodel
+```
+```{r}
+plot(mortality2$log_age, mortality2$log_deaths)
+```
+
+```{r}
+summary(lmodel)
+```
+```{r}
+exp(lmodel$fitted.values)*mortality2$population/100000
+mortality2$deaths
+```
+
+```{r}
+data(poisson)
+poisson
+```
+
+```{r}
+res.p=glm(y~x,family=poisson(link="identity"),data=poisson)
+summary(res.p)
+```
+
+## Chapter4 Estimation  
+
+```{r}
+#table 4.1 
+data(failure)
+failure
+```
+```{r}
+hist(failure$lifetimes,freq=T,col="grey",breaks=12)
+```
+
+```{r}
+library(tidyverse)
+length(failure$lifetimes)
+failure$percent <- order(failure$lifetimes)*100/length(failure$lifetimes)
+failure |> ggplot(aes(x=lifetimes, y=percent)) + geom_point(size=3) +
+  scale_x_log10() + scale_y_log10() + theme_bw()
+```
+
+```{r}
+weibull <- tibble(
+  x=seq(1000, 20000, by=1),
+  data = dweibull(seq(1000, 20000, by=1),shape=3))
+weibull$percent <- order(weibull$data)*100/length(weibull$data)
+head(weibull)
+weibull |> ggplot(aes(x=x, y=percent)) + geom_point(size=1) + theme_bw()
+```
+
+```{r}
+y <- failure$lifetimes
+N <- length(failure$lifetimes)
+shape <- 2
+forU <- function(theta){
+  1e6*(-(shape*N)/(theta)+(shape*sum(y^2))/(theta^3))
+}
+forUprime <- function(theta){
+  1e6*((shape*N)/(theta^2)-(shape*3*sum(y^2))/(theta^4))
+}
+forEUprime <- function(theta){
+  1e6*(-(shape^2*N)/(theta^2))
+}
+nextTheta <- function(theta, U, Up){
+  theta - U/Up
+}
+```
+
+```{r}
+theta1 <- mean(failure$lifetimes)
+U10e6_1 <- forU(theta1)
+Uprime10e6_1 <- forUprime(theta1)
+EUprime10e6_1 <- forEUprime(theta1)
+newTheta <- nextTheta(theta1, U10e6_1/1e6, Uprime10e6_1/1e6)
+theta1
+U10e6_1
+Uprime10e6_1
+EUprime10e6_1
+U10e6_1/Uprime10e6_1
+U10e6_1/EUprime10e6_1
+newTheta
+```
+
+```{r}
+library(tidyverse)
+tibble("theta" = theta1, 
+       "U10e6" = U10e6_1, 
+       "Uprime10e6" = Uprime10e6_1, 
+       "EUprime10e6" = EUprime10e6_1, 
+       "U/Uprime" = U10e6_1/Uprime10e6_1, 
+       "U/EUprime" = U10e6_1/EUprime10e6_1
+       ) %>% 
+  add_row("theta" = nextTheta(last(.$theta), last(.$U10e6)/1e6, last(.$Uprime10e6)/1e6),
+          "U10e6" = forU(theta), 
+       "Uprime10e6" = forUprime(theta), 
+       "EUprime10e6" = forEUprime(theta), 
+       "U/Uprime" = U10e6/Uprime10e6, 
+       "U/EUprime" = U10e6/EUprime10e6
+       ) %>% 
+  add_row("theta" = nextTheta(last(.$theta), last(.$U10e6)/1e6, last(.$Uprime10e6)/1e6),
+          "U10e6" = forU(theta), 
+       "Uprime10e6" = forUprime(theta), 
+       "EUprime10e6" = forEUprime(theta), 
+       "U/Uprime" = U10e6/Uprime10e6, 
+       "U/EUprime" = U10e6/EUprime10e6
+       ) %>% 
+  add_row("theta" = nextTheta(last(.$theta), last(.$U10e6)/1e6, last(.$Uprime10e6)/1e6),
+          "U10e6" = forU(theta), 
+       "Uprime10e6" = forUprime(theta), 
+       "EUprime10e6" = forEUprime(theta), 
+       "U/Uprime" = U10e6/Uprime10e6, 
+       "U/EUprime" = U10e6/EUprime10e6
+       ) %>% 
+  add_row("theta" = nextTheta(last(.$theta), last(.$U10e6)/1e6, last(.$Uprime10e6)/1e6),
+          "U10e6" = forU(theta), 
+       "Uprime10e6" = forUprime(theta), 
+       "EUprime10e6" = forEUprime(theta), 
+       "U/Uprime" = U10e6/Uprime10e6, 
+       "U/EUprime" = U10e6/EUprime10e6
+       )
+```
+
+
+```{r}
+library(dobson)
+data(poisson)
+poisson
+```
+
+```{r}
+res.p=glm(y~x,family=poisson(link="identity"),data=poisson)
+summary(res.p)
+```
+
+```{r}
+aids
+```
+
+```{r}
+aids |> ggplot(aes(x=seq(1,20, by=1),
+                   y=cases)) + geom_point(size=2) + theme_bw()
+```
+
+```{r}
+ggplot(aes(x=log(seq(1,20, by=1)), 
+           y=log(cases)),
+           data=aids) + geom_point(size=2) + theme_bw()
+```
+
+```{r}
+aids$logx <- log(seq(1,20, by=1))
+res.p=glm(cases~logx,family=poisson(link="log"),data=aids)
+summary(res.p)
+```
+
+```{r}
+beta1 = 1
+beta2 = 1
+beta = matrix(c(beta1, beta2))
+beta
+X = matrix(c(rep(1,20), aids$logx),
+           ncol = 2,
+           byrow = FALSE)
+X
+```
+
+```{r}
+library(matlib)
+Y=aids$cases
+W = as.vector(exp(X %*% beta))
+XWX = t(X) %*% diag(W) %*% X
+XWX
+Z = X %*% beta + Y/exp(X %*% beta) - 1
+XWz = t(X) %*% diag(W) %*% Z
+XWz
+beta = inv(XWX) %*% XWz
+beta
+```
+
+```{r}
+W = as.vector(exp(X %*% beta))
+XWX = t(X) %*% diag(W) %*% X
+XWX
+Z = X %*% beta + Y/exp(X %*% beta) - 1
+XWz = t(X) %*% diag(W) %*% Z
+XWz
+beta = inv(XWX) %*% XWz
+beta
+```
+
+```{r}
+W = as.vector(exp(X %*% beta))
+XWX = t(X) %*% diag(W) %*% X
+XWX
+Z = X %*% beta + Y/exp(X %*% beta) - 1
+XWz = t(X) %*% diag(W) %*% Z
+XWz
+beta = inv(XWX) %*% XWz
+beta
+```
+
+```{r}
+W = as.vector(exp(X %*% beta))
+XWX = t(X) %*% diag(W) %*% X
+XWX
+Z = X %*% beta + Y/exp(X %*% beta) - 1
+XWz = t(X) %*% diag(W) %*% Z
+XWz
+beta = inv(XWX) %*% XWz
+beta
+```
+
+```{r}
+W = as.vector(exp(X %*% beta))
+XWX = t(X) %*% diag(W) %*% X
+XWX
+Z = X %*% beta + Y/exp(X %*% beta) - 1
+XWz = t(X) %*% diag(W) %*% Z
+XWz
+beta = inv(XWX) %*% XWz
+beta
+```
+
+```{r}
+leukemia
+```
+
+```{r}
+leukemia |> ggplot(aes(x=wbc, y=time))+geom_point(size=2) + theme_bw()
+```
+
+```{r}
+res.e=glm(time~wbc,family=Gamma(link="log"), data=leukemia)
+summary(res.e, dispersion=1)
+```
+
+```{r}
+beta1 = 1
+beta2 = 1
+beta = matrix(c(beta1, beta2))
+beta
+X = matrix(c(rep(1,length(leukemia$wbc)), leukemia$wbc),
+           ncol = 2,
+           byrow = FALSE)
+X
+```
+
+```{r}
+library(matlib)
+Y=leukemia$time
+
+for (i in 1:8) {
+  W = rep(1,length(leukemia$wbc))
+  XWX = t(X) %*% diag(W) %*% X
+  print(paste0("iter_", i))
+  print(XWX)
+  Z = X %*% beta + (Y-exp(X %*% beta))/exp(X %*% beta)
+  XWz = t(X) %*% diag(W) %*% Z
+  print(XWz)
+  beta = inv(XWX) %*% XWz
+  print(beta)
+  writeLines("\n")
+}
+```
+
+## Chapter5 Inference  
+
+```{r}
+#Exercises 5.1
+#critical value
+qchisq(0.95,df=1)
+```
+```{r}
+N=10
+y=3
+pi=c(0.1,0.3,0.5)
+#information
+J=N/(pi*(1-pi))
+#Wald/score statistic
+Wald = (y-N*pi)^2/(N*pi*(1-pi))
+#Deviance
+pi_hat=y/N
+D=2*(y*log(pi_hat/pi)+(N-y)*log((1-pi_hat)/(1-pi)))
+Wald
+D
+```
+
+```{r}
+#Exercises 5.3(d)
+N=100
+theta_hat=c()
+for(i in 1:20){
+  N=100
+  U = runif(N, min = 0, max = 1)
+  theta=2
+  Y=(1/U)^(1/theta)
+  theta_h = N/(sum(log(Y)))
+  print(theta_h)
+  theta_hat=c(theta_hat, theta_h)
+}
+```
+
+```{r}
+theta_hat
+quantile(theta_hat,  probs = c(2.5, 97.5)/100)
+```
+
+```{r}
+library(dobson)
+leukemia
+```
+
+```{r}
+res.e=glm(time~wbc,family=Gamma(link="log"), data=leukemia)
+summary(res.e, dispersion=1)
+```
+
+```{r}
+#95% confidence interval for the parameter b1.
+-1.1093+0.3997*2
+-1.1093-0.3997*2
+```
+
+```{r}
+res.e2=glm(time~1,family=Gamma(link="log"), data=leukemia)
+summary(res.e2, dispersion=1)
+```
+
+```{r}
+#deviance difference
+res.e2$deviance - res.e$deviance
+diff = res.e2$deviance - res.e$deviance
+#p value
+(1-pchisq(diff, df=1))
+```
+
+## Chapter6 Normal Linear Models  
+
+
+ 
+```{r}
+carbohydrate
+```
+
+```{r}
+dput(carbohydrate)
+```
+
+
+
+```{r}
+#Model 6.7
+N=dim(carbohydrate)[1]
+X <- carbohydrate
+X[,1] <- rep(1, N)
+X
+```
+Why $(y-Xb)^T(y-Xb)\ne y^Ty-b^TX^Ty$, where $b=(X^TX)^{-1}X^Ty$ is the least squares estimate?
+
+$$\begin{align}
+(y-Xb)^T(y-Xb)&=y^Ty-y^TXb-b^TX^Ty+b^TX^TXb\\
+&=y^Ty-b^TX^Ty
+\end{align}$$
+
+```{r}
+carbohydrate <- structure(list(carbohydrate = c(33, 40, 37, 27, 30, 43, 34, 48, 
+30, 38, 50, 51, 30, 36, 41, 42, 46, 24, 35, 37), age = c(33, 
+47, 49, 35, 46, 52, 62, 23, 32, 42, 31, 61, 63, 40, 50, 64, 56, 
+61, 48, 28), weight = c(100, 92, 135, 144, 140, 101, 95, 101, 
+98, 105, 108, 85, 130, 127, 109, 107, 117, 100, 118, 102), protein = c(14, 
+15, 18, 12, 15, 15, 14, 17, 15, 14, 17, 19, 19, 20, 15, 16, 18, 
+13, 18, 14)), class = c("tbl_df", "tbl", "data.frame"), row.names = c(NA, 
+-20L))
+
+N=dim(carbohydrate)[1]
+X <- carbohydrate
+X[,1] <- rep(1, N)
+y <- as.matrix(carbohydrate$carbohydrate)
+#b=(X^TX)^{-1}X^Ty
+X <- as.matrix(X)
+XTX <- t(X) %*% X
+XTy <- t(X) %*% y
+XTX_inv <- solve(XTX)
+b=XTX_inv %*% XTy
+
+#Residual S
+t(y - X %*% b) %*% (y - X %*% b)
+#Residual S
+t(y) %*% y - 2*(t(y) %*% X %*% b) + t(b) %*% XTX %*% b
+#Residual S
+t(y) %*% y - t(b) %*% XTy
+```
+
+```{r}
+#Model 6.7
+y <- as.matrix(carbohydrate$carbohydrate)
+#X^Ty
+t(as.matrix(X)) %*% y
+#X^TX
+t(as.matrix(X)) %*% as.matrix(X)
+```
+
+```{r}
+#b=(X^TX)^{-1}X^Ty
+X <- as.matrix(X)
+XTX <- t(X) %*% X
+XTy <- t(X) %*% y
+solve(XTX)
+XTX_inv <- solve(XTX)
+b=solve(XTX) %*% XTy
+b
+```
+
+```{r}
+t(y) %*% y
+#Residual S
+t(y - X %*% b) %*% (y - X %*% b)
+#Residual S
+t(y) %*% y - 2*(t(y) %*% X %*% b) + t(b) %*% XTX %*% b
+#Residual
+t(y) %*% y - t(b) %*% XTy
+```
+
+```{r}
+#R^2
+(t(b) %*% XTX %*% b - N*mean(y)^2)/(t(y) %*% y - N*(mean(y)^2))
+(t(b) %*% XTy - N*mean(y)^2)/(t(y) %*% y - N*mean(y)^2)
+```
+
+```{r}
+#fitted values
+X %*% b
+```
+
+```{r}
+#unbiased estimator of \sigma^2:
+p=4
+(t(y-X %*% b) %*% (y-X %*% b))/(N-p)
+sigma_sq <- (t(y-X %*% b) %*% (y-X %*% b))/(N-p)
+#J^{-1}
+diag(XTX_inv)
+sqrt(as.vector(sigma_sq) * diag(XTX_inv))
+```
+
+```{r}
+#Model 6.7
+N=dim(carbohydrate)[1]
+X2 <- carbohydrate[,2:4]
+X2[,1] <- rep(1, N)
+X2
+```
+
+```{r}
+y <- as.matrix(carbohydrate$carbohydrate)
+#b=(X^TX)^{-1}X^Ty
+X2 <- as.matrix(X2)
+XTX2 <- t(X2) %*% X2
+XTy2 <- t(X2) %*% y
+solve(XTX2)
+XTX_inv2 <- solve(XTX2)
+b2=XTX_inv2 %*% XTy2
+b2
+```
+
+```{r}
+t(y) %*% y
+#Residual
+t(y - X2 %*% b2) %*% (y - X2 %*% b2)
+```
+
+
+
+```{r}
+res.lm=lm(carbohydrate~age+weight+protein,data=carbohydrate)
+summary(res.lm)
+```
+
+```{r}
+res.lm=lm(carbohydrate~age+weight+protein,data=carbohydrate)
+b2 <- res.lm$coefficients
+N=dim(carbohydrate)[1]
+X <- carbohydrate
+X[,1] <- rep(1, N)
+y <- as.matrix(carbohydrate$carbohydrate)
+#b=(X^TX)^{-1}X^Ty
+X <- as.matrix(X)
+
+#Residual S
+t(y - X %*% b2) %*% (y - X %*% b2)
+#Residual S
+t(y) %*% y - 2*(t(y) %*% X %*% b2) + t(b2) %*% XTX %*% b2
+#Residual
+t(y) %*% y - t(b2) %*% XTy
+```
+
+```{r}
+crossprod(X)
+t(X) %*% X
+``` 
+
+```{r}
+res.lm$fitted.values
+```
+
+```{r}
+#unbiased estimator of \sigma^2:
+b2 <- res.lm$coefficients
+p=4
+sigma_sq <- (t(y-X %*% b2) %*% (y-X %*% b2))/(N-p)
+sigma_hat <- sqrt(sigma_sq)
+sigma_hat
+
+#het matrix X(X^TX)^{-1}X^T
+H <- X %*% XTX_inv %*% t(X)
+diag(H)
+hatvalues(res.lm)
+```
+
+
+```{r}
+#standard deviation of residual
+std_e <- as.vector(sigma_hat)*sqrt(1-hatvalues(res.lm))
+std_e
+```
+
+```{r}
+#Table 6.6
+library(tidyverse)
+tibble(carbohydrate = carbohydrate$carbohydrate, 
+       Fitted_values = res.lm$fitted.values, 
+       Residual = res.lm$residuals, 
+       Std_residual = res.lm$residuals/std_e, 
+       DFIT = Std_residual*sqrt(hatvalues(res.lm)/(1-hatvalues(res.lm))),
+       cooks_distance = cooks.distance(res.lm))
+```
+
+```{r}
+res.lm1=lm(carbohydrate~weight+protein,data=carbohydrate)
+summary(res.lm1)
+```
+
+The R squared value ranges between 0 to 1 and is represented by the below formula:  
+
+
+$$R2= 1- SSres / SStot$$
+
+```{r}
+anova(res.lm)
+anova(res.lm1)
+```
+
+```{r}
+#SStot OF res.lm
+sum(anova(res.lm)$`Sum Sq`)
+sum((carbohydrate$carbohydrate-mean(carbohydrate$carbohydrate))^2)
+
+#SSres OF res.lm
+sum(anova(res.lm)$`Sum Sq`[1:3])
+sum((res.lm$fitted.values-mean(carbohydrate$carbohydrate))^2)
+sum((res.lm$fitted.values-mean(res.lm$fitted.values))^2)
+```
+
+```{r}
+#SStot OF res.lm1
+sum(anova(res.lm1)$`Sum Sq`)
+sum((carbohydrate$carbohydrate-mean(carbohydrate$carbohydrate))^2)
+
+#SSres OF res.lm1
+sum(anova(res.lm1)$`Sum Sq`[1:2])
+sum((res.lm1$fitted.values-mean(carbohydrate$carbohydrate))^2)
+
+```
+
+
+```{r}
+#R-square
+summary(res.lm)$r.squared
+1-anova(res.lm)$`Sum Sq`[4]/sum(anova(res.lm)$`Sum Sq`)
+
+summary(res.lm1)$r.squared
+1-anova(res.lm1)$`Sum Sq`[3]/sum(anova(res.lm1)$`Sum Sq`)
+```
+Adjusted $R^2$ is computed as:
+
+$$1 - (1 - R^2) \frac{n - 1}{n - p - 1}$$
+```{r}
+#res.lm
+summary(res.lm)$adj.r.squared
+1-(1-summary(res.lm)$r.squared)*(20-1)/(20-3-1)
+#res.lm1
+summary(res.lm1)$adj.r.squared
+1-(1-summary(res.lm1)$r.squared)*(20-1)/(20-2-1)
+```
+
+The square root of $R^2$ is called the **multiple correlation coefficient**.
+
+```{r}
+anova(res.lm, res.lm1)
+```
+
+```{r}
+#F statistic
+38.359/(567.66/16)
+```
+
+```{r}
+1-pf(38.359/(567.66/16), df1=1, df2=16)
+```
+
+```{r}
+data(carbohydrate)
+res.glm=glm(carbohydrate~age+weight+protein,family=gaussian,data=carbohydrate)
+summary(res.glm)
+```
+```{r}
+res.glm2=glm(carbohydrate~weight+protein,family=gaussian,data=carbohydrate)
+summary(res.glm2)
+```
+
+```{r}
+# Therefore, the difference in the residual sums of squares for Models (6.7) and (6.6) is 606.022−567.663 = 38.359.
+res.glm2$deviance
+res.glm$deviance
+res.glm2$deviance - res.glm$deviance
+#(606.02-567.66)
+```
+
+```{r}
+#The value F =38.359/35.489 = 1.08 is not significant compared with the F(1,16) distribution,
+res.glm2$df.residual
+res.glm$df.residual
+(res.glm2$deviance - res.glm$deviance)/(res.glm$deviance/res.glm$df.residual)
+Fstatistic <- (606.02-567.66)/(567.66/16)
+Fstatistic
+pf(Fstatistic, 1,16)
+```
+
+
+```{r}
+library(cvTools)
+full.model <- lm(carbohydrate ~ ., data = carbohydrate)
+cvFit(full.model, data = carbohydrate, K = 5, R = 20, y = carbohydrate$carbohydrate)
+```
+
+```{r}
+library(olsrr)
+full.model <- lm(carbohydrate ~ ., data = carbohydrate)
+ols_step_both_p(full.model, details=TRUE)
+```
+
+```{r}
+#R code (lasso)
+library(glmnet)
+y = carbohydrate$carbohydrate
+x = as.matrix(carbohydrate[,c('age','weight','protein')])
+fit = glmnet(x, y)
+plot(fit, xvar='lambda')
+```
+
+```{r}
+cvfit = cv.glmnet(x, y, grouped=FALSE)
+coef(cvfit, s = "lambda.1se")
+```
+```{r}
+plant.dried
+```
+
+```{r}
+res.glm1=glm(weight~-1 + group, family=gaussian, data=plant.dried)
+summary(res.glm1)
+```
+
+```{r}
+res.glm0=glm(weight~1, family=gaussian, data=plant.dried)
+summary(res.glm0)
+```
+
+```{r}
+balanced
+```
+
+```{r}
+res.glmint=glm(data~`factor A`*`factor B`, family=gaussian, data=balanced)
+res.glmadd=glm(data~`factor A`+`factor B`, family=gaussian, data=balanced)
+res.glmA=glm(data~`factor A`, family=gaussian, data=balanced)
+res.glmB=glm(data~`factor B`, family=gaussian, data=balanced)
+res.glmmean=glm(data~1, family=gaussian, data=balanced)
+```
+
+```{r}
+res.glmint
+summary(res.glmint)
+anova(res.glmint)
+```
+```{r}
+#b^TX^Ty = y^y-(y-Xb)^T(y-Xb)
+sum(res.glmint$data$data^2)
+crossprod(res.glmint$data$data)
+res.glmint$data$data-res.glmint$fitted.values
+res.glmint$residuals
+sum(res.glmint$data$data^2) - sum((res.glmint$data$data-res.glmint$fitted.values)^2)
+```
+
+
+
+```{r}
+summary(res.glmadd)
+
+sum(res.glmadd$data$data^2) - sum((res.glmadd$residuals)^2)
+```
+```{r}
+summary(res.glmA)
+
+sum(res.glmA$data$data^2) - sum((res.glmA$residuals)^2)
+```
+
+```{r}
+summary(res.glmB)
+
+sum(res.glmB$data$data^2) - sum((res.glmB$residuals)^2)
+```
+
+```{r}
+summary(res.glmmean)
+
+sum(res.glmmean$data$data^2) - sum((res.glmmean$residuals)^2)
+```
+
+```{r}
+#Table6.13
+tibble(
+  d.f.=c(res.glmint$df.residual,
+  res.glmadd$df.residual,
+  res.glmA$df.residual,
+  res.glmB$df.residual,
+  res.glmmean$df.residual),
+  bTXTy=c(sum(res.glmint$data$data^2) - sum((res.glmint$residuals)^2),
+          sum(res.glmadd$data$data^2) - sum((res.glmadd$residuals)^2),
+          sum(res.glmA$data$data^2) - sum((res.glmA$residuals)^2),
+          sum(res.glmB$data$data^2) - sum((res.glmB$residuals)^2),
+          sum(res.glmmean$data$data^2) - sum((res.glmmean$residuals)^2)),
+  scaled_deviance= c(res.glmint$deviance,
+  res.glmadd$deviance,
+  res.glmA$deviance,
+  res.glmB$deviance,
+  res.glmmean$deviance),
+  ) |> as.data.frame()
+```
+
+```{r}
+sigmaDs <- res.glmint$deviance
+sigmaDi <- res.glmadd$deviance
+#F
+((sigmaDi-sigmaDs)/(res.glmadd$df.residual-res.glmint$df.residual))/(sigmaDs/res.glmint$df.residual)
+```
+
+```{r}
+df1=res.glmadd$df.residual-res.glmint$df.residual
+df1
+df2=res.glmint$df.residual
+df2
+#F
+Fstatistic=((sigmaDi-sigmaDs)/(res.glmadd$df.residual-res.glmint$df.residual))/(sigmaDs/res.glmint$df.residual)
+1-pf(Fstatistic, df1=df1, df2=df2)
+```
+
+```{r}
+sigmaDs <- res.glmint$deviance
+sigmaDi <- res.glmadd$deviance
+sigmaDa <- res.glmA$deviance
+df1=res.glmA$df.residual-res.glmadd$df.residual
+df1
+df2=res.glmint$df.residual
+df2
+Fstatistic=((sigmaDa-sigmaDi)/(res.glmA$df.residual-res.glmadd$df.residual))/(sigmaDs/res.glmint$df.residual)
+Fstatistic
+1-pf(Fstatistic, df1=df1, df2=df2)
+```
+
+```{r}
+sigmaDs <- res.glmint$deviance
+sigmaDi <- res.glmadd$deviance
+sigmaDb <- res.glmB$deviance
+df1=res.glmB$df.residual-res.glmadd$df.residual
+df1
+df2=res.glmint$df.residual
+df2
+Fstatistic=((sigmaDb-sigmaDi)/(res.glmB$df.residual-res.glmadd$df.residual))/(sigmaDs/res.glmint$df.residual)
+Fstatistic
+1-pf(Fstatistic, df1=df1, df2=df2)
+```
+    
+          
+```{r}
+#Table6.14
+tibble(Source_of_variantion=c(
+  "Mean",
+  "Level A",
+  "Level B",
+  "Interactions",
+  "Residual"
+),
+  d.f.=c(
+  length(res.glmmean$coefficients),
+  length(res.glmA$coefficients)-length(res.glmmean$coefficients),
+  length(res.glmB$coefficients)-length(res.glmmean$coefficients),
+  length(res.glmint$coefficients)-length(res.glmA$coefficients)-length(res.glmB$coefficients)+length(res.glmmean$coefficients),
+  res.glmint$df.residual
+  ),
+  sum_of_squares=c(
+    sum(res.glmmean$data$data^2) - sum((res.glmmean$residuals)^2),
+    sum(res.glmA$data$data^2) - sum((res.glmA$residuals)^2) - (sum(res.glmmean$data$data^2) - sum((res.glmmean$residuals)^2)),
+    sum(res.glmB$data$data^2) - sum((res.glmB$residuals)^2) - (sum(res.glmmean$data$data^2) - sum((res.glmmean$residuals)^2)),
+    sum(res.glmint$data$data^2) - sum((res.glmint$residuals)^2) -
+    (sum(res.glmA$data$data^2) - sum((res.glmA$residuals)^2)) - 
+      (sum(res.glmB$data$data^2) - sum((res.glmB$residuals)^2)) +
+      ((sum(res.glmmean$data$data^2) - sum((res.glmmean$residuals)^2))),
+    sum((res.glmint$residuals)^2)
+  ),
+  Mean_squares = sum_of_squares/`d.f.`,
+  "F"=c(
+    " ",
+    ((sigmaDb-sigmaDi)/(res.glmB$df.residual-res.glmadd$df.residual))/(sigmaDs/res.glmint$df.residual),
+    ((sigmaDa-sigmaDi)/(res.glmA$df.residual-res.glmadd$df.residual))/(sigmaDs/res.glmint$df.residual),
+    ((sigmaDi-sigmaDs)/(res.glmadd$df.residual-res.glmint$df.residual))/(sigmaDs/res.glmint$df.residual),
+    " "
+  )
+  ) |> as.data.frame()
+```
+
+```{r}
+anova(res.glmmean, res.glmA, res.glmB, res.glmadd, res.glmint)
+```
+
+```{r}
+#Table6.14
+anova(res.glmmean, res.glmA, res.glmB, res.glmadd, res.glmint)$`Resid. Dev`
+#sum_of_squares Mean
+sum(res.glmmean$data$data^2) - sum((res.glmmean$residuals)^2)
+#sum_of_squares Level A
+anova(res.glmmean, res.glmA, res.glmB, res.glmadd, res.glmint)$`Resid. Dev`[1] - anova(res.glmmean, res.glmA, res.glmB, res.glmadd, res.glmint)$`Resid. Dev`[2]
+#sum_of_squares Level B
+anova(res.glmmean, res.glmA, res.glmB, res.glmadd, res.glmint)$`Resid. Dev`[1] - anova(res.glmmean, res.glmA, res.glmB, res.glmadd, res.glmint)$`Resid. Dev`[3]
+#sum_of_squares Interactions
+anova(res.glmmean, res.glmA, res.glmB, res.glmadd, res.glmint)$`Resid. Dev`[4] - anova(res.glmmean, res.glmA, res.glmB, res.glmadd, res.glmint)$`Resid. Dev`[5]
+#sum_of_squares Residual
+anova(res.glmmean, res.glmA, res.glmB, res.glmadd, res.glmint)$`Resid. Dev`[5]
+```
+
+```{r}
+#Table6.15
+achievement
+```
+
+```{r}
+achievement |> ggplot(aes(x=x,
+                          y=y,
+                          group=method)) + geom_point(aes(shape=method, color=method), size=3) +
+  theme_bw() + theme(
+  # Hide panel borders and remove grid lines
+  #panel.border = element_line(colour = "black"),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  # Change axis line
+  #axis.line = element_line(colour = "black")
+) + xlab("Gestational age (weeks)") +
+  ylab("Birthweight (grams)") + scale_shape_manual(values=c(1, 3, 18))
+
+```
+
+```{r}
+#Model 6.13
+res.glm=glm(y~x+method, family=gaussian, data=achievement)
+summary(res.glm)
+```
+
+```{r}
+#Model 6.13
+summary(res.glm)$coefficients
+summary(res.glm)$coefficients[1]
+summary(res.glm)$coefficients[1]+summary(res.glm)$coefficients[3]
+summary(res.glm)$coefficients[1]+summary(res.glm)$coefficients[4]
+summary(res.glm)$coefficients[2]
+
+#sigmaD1
+res.glm$deviance
+```
+
+```{r}
+#Model 6.14
+res.glm2=glm(y~x, family=gaussian, data=achievement)
+summary(res.glm2)
+```
+
+```{r}
+#Model 6.14
+summary(res.glm2)$coefficients
+summary(res.glm2)$coefficients[1]
+summary(res.glm2)$coefficients[2]
+
+#sigmaD0
+res.glm2$deviance
+```
+
+```{r}
+anova(res.glm2,res.glm)
+```
+
+```{r}
+#b^TX^Ty
+sum((res.glm2$data$y)^2) - sum((res.glm2$data$y-res.glm2$fitted.values)^2)
+sum(res.glm2$fitted.values^2)
+```
+
+```{r}
+anova(res.glm2,res.glm)$`Resid. Df`
+```
+
+```{r}
+#Table6.16
+tibble(d.f.=c(length(res.glm2$coefficients),
+              anova(res.glm2,res.glm)$`Resid. Df`[1]-anova(res.glm2,res.glm)$`Resid. Df`[2],
+              anova(res.glm2,res.glm)$`Resid. Df`[2]),
+       sum_of_squaresc=c(sum(res.glm2$fitted.values^2),
+                         anova(res.glm2,res.glm)$`Resid. Dev`[1]-anova(res.glm2,res.glm)$`Resid. Dev`[2],
+                         anova(res.glm2,res.glm)$`Resid. Dev`[2]),
+       Mean_squares=sum_of_squaresc/`d.f.`,
+       "F"=c("",Mean_squares[2]/Mean_squares[3],"")) |> as.data.frame()
+```
+
+```{r}
+head(PLOS)
+dim(PLOS)
+```
+
+```{r}
+#Figure6.7
+PLOS |> ggplot(aes(x=authors,
+                   y=nchar))+geom_jitter(size=1)+theme_bw() + theme(
+  # Hide panel borders and remove grid lines
+  #panel.border = element_line(colour = "black"),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  # Change axis line
+  #axis.line = element_line(colour = "black")
+)
+```
+
+```{r}
+#Model6.15
+lmodel = lm(nchar ~ authors, data=PLOS)
+summary(lmodel)
+```
+
+```{r}
+#Model6.16
+qmodel = lm(nchar ~ authors + I(authors^2), data=PLOS)
+summary(qmodel)
+```
+
+```{r}
+sum(lmodel$residuals^2)
+sum(qmodel$residuals^2)
+```
+
+```{r}
+anova(lmodel, qmodel)
+```
+
+```{r}
+#Table6.21
+#Fractional polynomials
+p=c(-2,-1,-0.5,0,0.5,1,2,3)
+for(i in p){
+  model = lm(nchar ~ I(authors^i), data=PLOS)
+  print(sum(model$residuals^2))
+}
+```
+
+```{r}
+p=c(-2,-1,-0.5,0,0.5,1,2,3)
+model <- function(i){
+  sum(lm(nchar ~ I(authors^i), data=PLOS)$residuals^2)
+}
+
+sapply(p, model)
+```
+
+```{r}
+sugar
+```
+
+```{r}
+sugar2 <- sugar
+sugar2["decade"] <- c(seq(0,5))
+sugar2
+```
+
+```{r}
+model1 <- lm(refined ~ decade, data=sugar2)
+summary(model1)
+```
+
+```{r}
+#coefficients
+model1$coefficients
+#extract standard error of individual regression coefficients
+sqrt(diag(vcov(model1)))
+#extract residual standard error of regression model
+summary(model1)$sigma
+```
+
+```{r}
+#95% confidence interval
+t_value <- qt(0.975, df=4)
+t_value
+sd <- sqrt(diag(vcov(model1)))[2]
+model1$coefficients[2]-t_value*sd
+model1$coefficients[2]+t_value*sd
+```
+
+```{r}
+model2 <- lm(manufactured ~ decade, data=sugar2)
+summary(model2)
+#coefficients
+model2$coefficients
+#extract standard error of individual regression coefficients
+sqrt(diag(vcov(model2)))
+#95% confidence interval
+model2$coefficients[2]-t_value*sd
+model2$coefficients[2]+t_value*sd
+```
+
+```{r}
+sugar2['Total'] <- sugar2['refined']+sugar2['manufactured']
+model3 <- lm(Total ~ decade, data=sugar2)
+summary(model3)
+```
+
+```{r}
+#Table 6.23
+pasture
+```
+```{r}
+#EXERCISES 6.2
+pasture |> ggplot(aes(x=K,
+                   y=yield))+geom_point(size=1)+theme_bw() + theme(
+  # Hide panel borders and remove grid lines
+  #panel.border = element_line(colour = "black"),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  # Change axis line
+  #axis.line = element_line(colour = "black")
+)
+```
+```{r}
+lmodel2 = lm(yield ~ K, data=pasture)
+summary(lmodel2)
+```
+
+```{r}
+qmodel2 = lm(yield ~ K + I(K^2), data=pasture)
+summary(qmodel2)
+```
+```{r}
+anova(lmodel2, qmodel2)
+```
+```{r}
+#standard deviation of residual
+N=length(pasture$K)
+p=3
+sigma_sq <- (t(pasture$yield-qmodel2$fitted.values) %*% (pasture$yield-qmodel2$fitted.values))/(N-p)
+sigma_hat <- sqrt(sigma_sq)
+std_e <- as.vector(sigma_hat)*sqrt(1-hatvalues(qmodel2))
+std_e
+#standardized residuals
+qmodel2$residuals/std_e
+```
+
+```{r}
+plot(qmodel2$residuals/std_e)
+```
+```{r}
+#EXERCISES6.3
+m1 <- lm(carbohydrate~age+weight+protein,data=carbohydrate)
+m2 <- lm(carbohydrate~weight+protein,data=carbohydrate)
+m3 <- lm(carbohydrate~age+protein,data=carbohydrate)
+m4 <- lm(carbohydrate~protein,data=carbohydrate)
+anova(m1, m2, m3, m4)
+```
+```{r}
+#EXERCISES6.4
+cholesterol
+m5 <- lm(chol~age+bmi,data=cholesterol)
+m6 <- lm(chol~age,data=cholesterol)
+anova(m5, m6)
+```
+```{r}
+#EXERCISES6.5
+plasma
+m7 <- lm(phosphate~Group,data=plasma)
+#Sum of squares: mean
+length(plasma$phosphate)*mean(plasma$phosphate)^2
+anova(m7)
+```
+```{r}
+tibble(d.f.=c(1,
+              anova(m7)$`Df`[1],
+              anova(m7)$`Df`[2]),
+       Sum_of_squares=c(length(plasma$phosphate)*mean(plasma$phosphate)^2,
+                        anova(m7)$`Sum Sq`[1],
+                        anova(m7)$`Sum Sq`[2]),
+       Mean_squares=Sum_of_squares/d.f.,
+       "F"=c("",Mean_squares[2]/Mean_squares[3],"")) |> as.data.frame()
+
+1-pf(11.6508063181284, df1=2, df2=28)
+```
+
+```{r}
+#pooled standard deviation
+N=length(plasma$phosphate)
+p=3
+sqrt(sum((plasma$phosphate-m7$fitted.values)^2)/(N-p))
+```
+
+```{r}
+summary(m7)
+m7$coefficients
+```
+
+```{r}
+plasma |> group_by(Group) |> summarise(n=n())
+```
+
+```{r}
+t_value <- qt(0.975, df=28)
+t_value
+sd <- sqrt(sum((plasma$phosphate-m7$fitted.values)^2)/(N-p))
+sd
+#95% percentile
+m7$coefficients[2]-m7$coefficients[3]-t_value*sd*sqrt(1/11+1/8)
+m7$coefficients[2]-m7$coefficients[3]+t_value*sd*sqrt(1/11+1/8)
+```
+
+```{r}
+#EXERCISES6.6
+machine2 <- machine |> mutate(day=factor(day),
+                  worker=factor(worker)) |> drop_na() |> as.data.frame()
+machine2[37, 3] <- 32.9
+machine2$weight
+```
+```{r}
+#Sum of squares: Mean
+length(machine2$weight)*(mean(machine2$weight))^2
+```
+
+
+```{r}
+m8 <- lm(weight~1,data=machine2)
+m9 <- lm(weight~worker,data=machine2)
+m10 <- lm(weight~day,data=machine2)
+m11 <- lm(weight~day+worker,data=machine2)
+m12 <- lm(weight~day*worker,data=machine2)
+
+anova(m8,m9,m10,m11,m12)
+```
+
+There are significant differences between workers and between days but no
+evidence of interaction effects.
+
+```{r}
+#EXERCISES6.7
+balanced
+```
+
+```{r}
+N=length(balanced$data)
+y=balanced$data
+X=matrix(c(rep(1,N), 
+         c(rep(-1,4),rep(1,4),rep(0,4)),
+         c(rep(-1,4),rep(0,4),rep(1,4)),
+         c(rep(-1,2),rep(1,2),rep(-1,2),rep(1,2),rep(-1,2),rep(1,2)),
+         c(rep(1,2),rep(-1,4),rep(1,2),rep(0,4)),
+         c(rep(1,2),rep(-1,2),rep(0,4),rep(-1,2),rep(1,2))),
+         ncol = 6,
+         byrow = FALSE)
+X
+crossprod(X)
+```
+
+Model6.9  
+
+
+$$E(Y_{jkl}) = \mu +\alpha_j+\beta_k+(\alpha\beta)_{jk}$$ 
+Model6.9   
+
+$$E(Y_{jkl}) = \mu +\alpha_j+\beta_k$$ 
+
+Model6.10   
+
+$$E(Y_{jkl}) = \mu +\alpha_j$$
+
+Model6.11   
+
+$$E(Y_{jkl}) = \mu +\beta_k$$
+
+
+```{r}
+#Model6.9
+#E(Yjkl) = μ +aj+bk+(ab)jk,
+N=dim(X)[1]
+p=dim(X)[1]-dim(X)[2]
+b1=crossprod(solve(crossprod(X)), crossprod(X, y))
+b1
+sigma.sq = crossprod((y-X %*% b1))/(N-p)
+#bXy
+crossprod(b1, crossprod(X, y))
+sigma.sq.D1 = crossprod(y) - crossprod(b1, crossprod(X, y))
+sigma.sq.D1
+Deviance1 = sigma.sq.D1/sigma.sq
+Deviance1
+```
+
+```{r}
+Deviance_f <- function(X1){
+  N=dim(X1)[1]
+  p1=dim(X1)[1]-dim(X1)[2]
+  b=crossprod(solve(crossprod(X1)), crossprod(X1, y))
+  sigma_sq = crossprod((y-X1 %*% b))/(N-p1)
+  sigma_sq_D1 = crossprod(y) - crossprod(b, crossprod(X1, y))
+  return(sigma_sq_D1)
+}
+Deviance_f(X[,1:4])
+```
+
+
+##  Chapter7 Binary Variables and Logistic Regression  
+
+```{r}
+y=c(6,13,18,28,52,53,61,60)
+n=c(59,60,62,56,63,59,62,60)
+x=c(1.6907,1.7242,1.7552,1.7842,1.8113,1.8369,1.8610,1.8839)
+n_y=n-y
+beetle.mat=cbind(y,n_y)
+beetle.mat
+```
+
+
+
+```{r}
+y=c(6,13,18,28,52,53,61,60)
+n=c(59,60,62,56,63,59,62,60)
+x=c(1.6907,1.7242,1.7552,1.7842,1.8113,1.8369,1.8610,1.8839)
+X1=matrix(c(rep(1, length(x)), x),
+         ncol = 2,
+         byrow = FALSE)
+
+B=matrix(c(0, 0), ncol = 1, byrow = FALSE)
+for(i in seq(1:6)){
+  pii = exp(X1 %*% B)/(1+exp(X1 %*% B))
+  npi1_pi = n*pii*(1-pii)
+  U=matrix(c(sum(y-n*pii), 
+             sum((y-n*pii)*x)),
+           ncol = 1, byrow = FALSE)
+  J=matrix(c(sum(npi1_pi),
+             sum(npi1_pi*x),
+             sum(npi1_pi*x),
+             sum(npi1_pi*x*x)),
+           ncol=2,
+           byrow = TRUE)
+  J_1 = solve(J)
+  B=J_1 %*% (crossprod(J, B)+U)
+  print(paste0("iter: ", i))
+  print("coefficients:")
+  print(B)
+  print("variances:")
+  print(diag(J_1))
+  writeLines("\n")
+}
+```
+```{r}
+sqrt(diag(J_1))
+B
+```
+
+```{r}
+y=c(6,13,18,28,52,53,61,60)
+n=c(59,60,62,56,63,59,62,60)
+x=c(1.6907,1.7242,1.7552,1.7842,1.8113,1.8369,1.8610,1.8839)
+#sigma_sq
+sigma_sq <- crossprod(y-n*exp(X1 %*% B)/(1+exp(X1 %*% B)))/(dim(X1)[1]-dim(X1)[2])
+
+#Deviance
+pi=y/n
+pi_hat=exp(X1 %*% B)/(1+exp(X1 %*% B))
+#add small error to get rid of 0
+Deviance=2*sum((y*log(pi/pi_hat)+(n-y)*log((1-pi+1/1e10)/(1-pi_hat+1/1e10))))
+Deviance
+```
+
+```{r}
+#add small error to get rid of 0
+p_null <- sum(y)/sum(n)
+Deviance_null=2*sum((y*log(pi/p_null)+(n-y)*log((1-pi+1/1e10)/(1-p_null+1/1e10))))
+Deviance_null
+```
+
+
+
+```{r}
+res.glm1=glm(beetle.mat~x, family=binomial(link="logit"))
+summary(res.glm1)
+```
+```{r}
+summary(res.glm1)
+logLik(res.glm1)
+```
+
+```{r}
+#mini model with no explanatory variable
+res.glm.mini=glm(beetle.mat~1, family=binomial(link="logit"))
+summary(res.glm.mini)
+logLik(res.glm.mini)
+
+#AIC
+-2*logLik(res.glm.mini)+2*1
+```
+
+```{r}
+y=c(6,13,18,28,52,53,61,60)
+n=c(59,60,62,56,63,59,62,60)
+x=c(1.6907,1.7242,1.7552,1.7842,1.8113,1.8369,1.8610,1.8839)
+#log likelihood of model with no explanatory variable
+pi_tide <- sum(y)/sum(n)
+sum(log(choose(n, y)))
+sum(y*log(pi_tide)+(n-y)*log(1-pi_tide))
+sum(log(choose(n, y))+y*log(pi_tide)+(n-y)*log(1-pi_tide))
+```
+
+```{r}
+fitted.values(res.glm1)
+```
+
+```{r}
+fit_p=c(fitted.values(res.glm1))
+fit_y=n*fit_p
+fit_y
+```
+
+```{r}
+#logistic model 
+res.glm1=glm(beetle.mat~x, family=binomial(link="logit"))
+summary(res.glm1)
+logLik(res.glm1)
+res.glm1$deviance
+```
+```{r}
+res.glm1$residuals
+res.glm1$resid
+```
+
+```{r}
+#working
+resid(res.glm1,type="working")
+#deviance
+resid(res.glm1,type="dev")
+#response
+resid(res.glm1,type="resp")
+#pearson
+resid(res.glm1,type="pear")
+```
+
+```{r}
+#predict values are the linear function: beta*x
+#fitted.values are the logistic of predict
+res.glm1$fitted.values
+predict(res.glm1)
+exp(predict(res.glm1))/(1+exp(predict(res.glm1)))
+```
+
+
+```{r}
+#working residuals
+resid(res.glm1,type="working")
+#predict mu=beta*x
+mu = predict(res.glm1)
+#pi is logistic of predict
+pi = exp(mu)/(1+exp(mu))
+(y/n-pi) / (pi*(1-pi))
+```
+
+```{r}
+#response residuals
+resid(res.glm1,type="resp")
+y/n - res.glm1$fitted.values
+```
+
+```{r}
+#pearson residuals
+resid(res.glm1,type="pear")
+pi = exp(mu)/(1+exp(mu))
+(y/n-pi) / sqrt((pi*(1-pi))/n)
+#or
+(y-n*pi) / sqrt(n*pi*(1-pi))
+```
+
+Deviance is 
+$$\begin{align}
+D&=2[l(b_{max};y)-l(b;y)]\\
+&=2\sum_{i=1}^{N}\left[y_i\log(y_i/\hat{y})+(n_i-y_i)\log\left(\frac{n_i-y_i}{n_i-\hat{y}}\right)\right]\\
+\end{align}$$ 
+
+For Deviance for a Poisson model:
+$$sign(o_i-e_i)*\sqrt{d_i}=sign(o_i-e_i)*\sqrt{2[o_i\log(o_i/e_i)-(o_i-e_i)]}, \quad i=1,\dots,N$$
+
+```{r}
+#Deviance residuals (add small error to get rid of log0)
+resid(res.glm1,type="dev")
+pi = exp(mu)/(1+exp(mu))
+sqrt(-2*(y*log(pi/(y/n))+(n-y)*log((1-pi+1e-10)/(1-y/n+1e-10))))*sign(y/n-pi)
+```
+
+```{r}
+#sum squared deviance residuals is the model deviance
+sum(resid(res.glm1,type="dev")^2)
+res.glm1$deviance
+sum(-2*(y*log(pi/(y/n))+(n-y)*log((1-pi+1e-10)/(1-y/n+1e-10))))
+```
+
+```{r}
+#partial residuals
+resid(res.glm1,type="partial")
+pi = exp(mu)/(1+exp(mu))
+(y/n-pi) / (pi*(1-pi)) + res.glm1$coefficients[2]*(x - mean(x))
+```
+
+```{r}
+res.glm2=glm(beetle.mat~x, family=binomial(link="probit"))
+summary(res.glm2)
+fit_p2=c(fitted.values(res.glm2))
+fit_y2=n*fit_p2
+fit_y2
+```
+
+
+```{r}
+res.glm3=glm(beetle.mat~x, family=binomial(link="cloglog"))
+summary(res.glm3)
+fit_p3=c(fitted.values(res.glm3))
+fit_y3=n*fit_p3
+fit_y3
+```
+
+```{r}
+senility
+```
+```{r}
+#Table 7.9
+senility2 <- senility |> group_by(x) |> 
+  mutate(y=sum(s),
+         n=n(),
+         ) |> distinct(x, .keep_all = TRUE) |> 
+  arrange(x) |> ungroup()
+senility2
+```
+
+```{r}
+res.glm.senility=glm(cbind(y,n-y)~x,family=binomial(link="logit"),data=senility2)
+summary(res.glm.senility)
+```
+
+```{r}
+#Table 7.9
+predicts <- predict(res.glm.senility)
+pi_tide2 <- exp(predicts)/(1+exp(predicts))
+pearson_residuals <- resid(res.glm.senility, type="pear")
+deviance_residuals <- resid(res.glm.senility, type="dev")
+senility2 |> mutate(pi_tide=pi_tide2,
+                    X=pearson_residuals,
+                    d=deviance_residuals)
+
+senility2 |> mutate(pi_tide=pi_tide2,
+                    X=pearson_residuals,
+                    d=deviance_residuals) |> 
+  summarize(across(everything(), sum))
+```
+
+```{r}
+senility3 <- senility2 |> mutate(pi_tide=pi_tide2,
+                    X=pearson_residuals,
+                    d=deviance_residuals,
+                    e=n*pi_tide,
+                    n_e=n-e)
+sum(senility3$X^2)
+sum(senility3$d^2)
+```
+
+```{r}
+senility3[senility3$pi_tide <= 0.107,]
+senility3[senility3$pi_tide > 0.107 & senility3$pi_tide <= 0.304,]
+senility3[senility3$pi_tide > 0.304,]
+```
+
+```{r}
+#Table7.10
+senility3[senility3$pi_tide <= 0.107,] |> summarize(across(1:9, sum)) |> as.data.frame()
+senility3[senility3$pi_tide > 0.107 & senility3$pi_tide <= 0.304,] |> summarize(across(1:9, sum)) |> as.data.frame()
+senility3[senility3$pi_tide > 0.304,] |> summarize(across(1:9, sum)) |> as.data.frame()
+```
+
+```{r}
+X_HL=sum((2-1.335)^2/1.335,
+         (3-4.479)^2/4.479,
+         (9-8.186)^2/8.186,
+         (16-16.665)^2/16.665,
+         (17-15.521)^2/15.521,
+         (7-7.814)^2/7.814
+         )
+X_HL
+1-pchisq(X_HL, df=1)
+```
+
+```{r}
+res.glm.senility.mini=glm(cbind(y,n-y)~1,family=binomial(link="logit"),data=senility2)
+summary(res.glm.senility.mini)
+```
+
+```{r}
+#AIC
+AIC(res.glm.senility.mini)
+-2*c(logLik(res.glm.senility.mini))+2*1
+#BIC
+BIC(res.glm.senility.mini)
+res.glm.senility.mini$aic-2*1+1*log(length(senility2$y))
+```
+
+```{r}
+predict(res.glm.senility.mini)
+```
+
+```{r}
+constant <- sum(log(choose(senility2$n, senility2$y)))
+constant
+```
+
+```{r}
+logLik(res.glm.senility)
+logLik(res.glm.senility.mini)
+#pseudo R2
+R2 <- (logLik(res.glm.senility.mini)-logLik(res.glm.senility))/(logLik(res.glm.senility.mini)-constant)
+R2
+```
+
+```{r}
+#ungrouped
+res.glm.senility.ungrouped=glm(s~x,family=binomial(link="logit"),data=senility)
+summary(res.glm.senility.ungrouped)
+logLik(res.glm.senility.ungrouped)
+```
+
+```{r}
+#ungrouped
+res.glm.senility.ungrouped.mini=glm(s~1,family=binomial(link="logit"),data=senility)
+summary(res.glm.senility.ungrouped.mini)
+logLik(res.glm.senility.ungrouped.mini)
+```
+
+```{r}
+data(anthers)
+anthers
+
+```
+
+```{r}
+#model2 different Intercept and different slope
+j <- anthers$storage
+newstor <- j-1
+x <- log(anthers$centrifuge)
+res.glm1=glm(cbind(y,n-y)~newstor*x,family=binomial(link="logit"),data=anthers)
+summary(res.glm1)
+```
+
+
+```{r}
+#model2 different Intercept and shared slope
+data(anthers)
+j <- anthers$storage
+newstor <- j-1
+x <- log(anthers$centrifuge)
+res.glm2=glm(cbind(y,n-y)~newstor+x,family=binomial(link="logit"),data=anthers)
+summary(res.glm2)
+```
+
+```{r}
+#model3 shared Intercept and slope
+data(anthers)
+x <- log(anthers$centrifuge)
+res.glm3=glm(cbind(y,n-y)~x,family=binomial(link="logit"),data=anthers)
+summary(res.glm3)
+```
+
+
+```{r}
+#fitted model1
+fit_p1=c(fitted.values(res.glm1))
+fit_y1=anthers$n*fit_p1
+fit_y1
+```
+
+```{r}
+#fitted model2
+fit_p2=c(fitted.values(res.glm2))
+fit_y2=anthers$n*fit_p2
+fit_y2
+```
+
+```{r}
+#fitted model2
+fit_p3=c(fitted.values(res.glm3))
+fit_y3=anthers$n*fit_p3
+fit_y3
+```
+
+
+
+```{r}
+res.glm1$null.deviance
+res.glm1$deviance
+```
+
+```{r}
+res.glm2$null.deviance
+res.glm2$deviance
+```
+
+
+```{r}
+res.glm3$null.deviance
+res.glm3$deviance
+```
+
+
+
+```{r}
+#model3 shared Intercept and slope
+data(senility)
+senility
+```
+
+```{r}
+library(tidyverse)
+senility2 <- senility |> 
+  group_by(x) |> 
+  summarize(y = sum(s),
+            n = n())
+
+senility2
+```
+
+```{r}
+res.glm=glm(cbind(y,n-y)~x,family=binomial(link="logit"),data=senility2)
+summary(res.glm)
+```
+
+```{r}
+res.glm$deviance
+pchisq(res.glm$deviance, df=15)
+```
+
+```{r}
+min(senility2$x)
+max(senility2$x)
+```
+
+```{r}
+x2 <- data.frame(x = seq(min(senility2$x), max(senility2$x), by=0.1))
+```
+
+```{r}
+predict <- predict(res.glm, x2, type="response")
+predict2 <- cbind(x2, data.frame(predict))
+head(predict2)
+```
+
+
+```{r}
+senility3 <- senility2 |> 
+  mutate(
+    proportion = y/n
+  )
+senility3
+```
+```{r}
+ggplot(senility3, aes(x = x, y = proportion)) + 
+  geom_point(size=2) +
+  geom_line(data=predict2, aes(x = x, y = predict)) + theme_bw() + theme(
+  # Hide panel borders and remove grid lines
+  #panel.border = element_line(colour = "black"),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  # Change axis line
+  #axis.line = element_line(colour = "black")
+) + scale_x_continuous(limits = c(4, 20), expand = c(0, 0))
+```
+
+```{r}
+res.glm$coefficients[1]
+```
+
+```{r}
+senility3 |> 
+  mutate(estimate = exp(res.glm$coefficients[1]+res.glm$coefficients[2]*x)/(1+exp(res.glm$coefficients[1]+res.glm$coefficients[2]*x))) |> 
+  mutate(X = (y-n*estimate)/sqrt(n*estimate*(1-estimate)))
+```
+
+```{r}
+res.glm=glm(s~x,family=binomial(link="logit"),data=senility)
+summary(res.glm)
+```
+
+```{r}
+library(doBy)
+waisgrp=summaryBy(s~x,data=senility,FUN=c(sum,length))
+names(waisgrp)=c('x','y','n')
+waisgrp
+```
+
+```{r}
+res.glm=glm(cbind(y, n-y)~x,family=binomial(link="logit"), data=waisgrp)
+summary(res.glm)
+```
+
+```{r}
+anthers
+```
+
+
+```{r}
+anthers.sum <- aggregate(anthers[c("n","y")], by = anthers[c("storage")], FUN=sum)
+anthers.sum
+```
+
+```{r}
+dput(anthers.sum)
+```
+
+
+```{r}
+anthers.sum <- structure(list(storage = c(1, 2), n = c(309, 247), y = c(164, 
+155)), row.names = c(NA, -2L), class = "data.frame")
+logit_model <- glm(cbind(y, n-y) ~ storage, data=anthers.sum, family=binomial(link='logit'))
+log_model <- glm(cbind(y, n-y) ~ storage, data=anthers.sum, family=binomial(link='log'))
+logit_model$coefficients
+log_model$coefficients
+```
+
+```{r}
+summary(logit_model)
+stats::confint(logit_model)
+```
+
+Newton method: 
+
+the log-likelihood function is 
+$$l=\sum_{i=1}^{N}\left[y_i(\beta_1+\beta_2x_i)-n_i\log\left[1+\exp(\beta_1+\beta_2x_i)\right]+\log{n_i \choose y_i}\right]$$
+the score matrix is 
+$$U=\left[\begin{matrix} 
+\frac{\partial l}{\partial\beta_1} \\ \frac{\partial l}{\partial\beta_2} 
+\end{matrix}\right]=\left[\begin{matrix} 
+\sum(y_i-n_i\pi_i) \\ \sum x_i(y_i-n_i\pi_i) 
+\end{matrix}\right]$$  
+$$\pi_i=\frac{\exp(\beta_1+\beta_2x_i)}{1+\exp(\beta_1+\beta_2x_i)}$$
+
+the information matrix is 
+
+$$J=\left[\begin{matrix} 
+\sum n_i\pi_i(1-\pi_i) & \sum n_ix_i\pi_i(1-\pi_i)  \\ \sum n_ix_i\pi_i(1-\pi_i) & \sum n_ix_i^2\pi_i(1-\pi_i) 
+\end{matrix}\right]$$ 
+
+The iteration is :
+
+$$J^{(m-1)} b^m=J^{(m-1)} b^{(m-1)}+U^{(m-1)}$$ 
+
+For a log-likelihood function of a single parameter $\beta$ , the first three terms of the Taylor series approximation near an estimate $b$ are 
+
+$$\begin{align}l(\beta)&\approx l(b)+(\beta-b)U(b)+\frac{1}{2}(\beta-b)^2U'(b)\\
+&=l(b)+(\beta-b)U(b)-\frac{1}{2}(\beta-b)^2J(b)\\
+&=-\frac{1}{2}(\beta-b)^2J(b)
+\end{align}$$ when $U(b)$ is the maximum likelihood estimate, $U(b)=0$
+Then $$l(\beta)-l(b)=-\frac{1}{2}(\beta-b)^2J(b)$$ and because 
+$$\mathbb E[(b-\beta)(b-\beta)^T]=J^{-1}\mathbb E(UU^T)J^{-1}=J^{-1}$$ because $$J=\mathbb E(UU^T)$$
+then $$2[l(\beta)-l(b)]=(b-\beta)^2J(b)\sim \chi^2(p)$$ 
+
+For the one-parameter case, $$b\sim N(\beta, J^{-1})$$
+
+
+```{r}
+X <- matrix(c(1,1,1,2), ncol=2,
+            byrow = TRUE)
+B=matrix(c(0, 0), ncol = 1, byrow = FALSE)
+n <- anthers.sum$n
+y <- anthers.sum$y
+x <- anthers.sum$storage
+for(i in seq(1:6)){
+  pii = exp(X %*% B)/(1+exp(X %*% B))
+  npi1_pi = n*pii*(1-pii)
+  U=matrix(c(sum(y-n*pii), 
+             sum((y-n*pii)*x)),
+           ncol = 1, byrow = FALSE)
+  J=matrix(c(sum(npi1_pi),
+             sum(npi1_pi*x),
+             sum(npi1_pi*x),
+             sum(npi1_pi*x*x)),
+           ncol=2,
+           byrow = TRUE)
+  J_1 = solve(J)
+  B=J_1 %*% (crossprod(J, B)+U)
+  print(paste0("iter: ", i))
+  print("coefficients:")
+  print(B)
+  print("variances:")
+  print(diag(J_1))
+  print("std.error:")
+  print(sqrt(diag(J_1)))
+  writeLines("\n")
+}
+```
+
+
+```{r}
+#pi_hat
+fitted.values(logit_model)
+#linear values
+predict(logit_model)
+#pi_hat
+exp(predict(logit_model))/(1+exp(predict(logit_model)))
+```
+
+
+
+
+
+
+```{r}
+x <- anthers.sum$storage
+#Logit model odds ratios Constant
+exp(coefficients(summary(logit_model))["(Intercept)",1]+coefficients(summary(logit_model))["storage",1]*x[1])
+#Logit model odds ratios Treatment vs. control
+exp(coefficients(summary(logit_model))["storage",1]*(x[2]-x[1]))
+```
+
+```{r}
+questionr::odds.ratio(logit_model, level=0.95)
+```
+```{r}
+coefficients(summary(logit_model))
+```
+
+```{r}
+#95% CI of constant
+exp(coefficients(summary(logit_model))["(Intercept)",1]+qnorm(c(0.025,0.975))*coefficients(summary(logit_model))["(Intercept)",2])
+#95% CI of treatment vs constant
+exp(coefficients(summary(logit_model))["storage",1]+qnorm(c(0.025,0.975))*coefficients(summary(logit_model))["storage",2])
+```
+
+
+```{r}
+#Exercises 7.1
+hiroshima
+hiroshima2 <- hiroshima |> mutate(dosage=as.integer(str_split(hiroshima$radiation, " ") |> map_chr(\(x) x[1])))
+hiroshima2
+```
+
+```{r}
+model.hiroshima <- glm(cbind(leukemia, `other cancer`) ~ dosage, data=hiroshima2, family=binomial(link='logit'))
+summary(model.hiroshima)
+```
+```{r}
+n_total <- hiroshima2$`total cancers`
+observed <- hiroshima2$leukemia
+predict(model.hiroshima)
+fitted.values(model.hiroshima)*n_total
+exp(predict(model.hiroshima))*n_total/(1+exp(predict(model.hiroshima)))
+estimated <- fitted.values(model.hiroshima)*n_total
+```
+```{r}
+hiroshima2 <- hiroshima2 |> mutate(OL=observed,
+                     OO=n_total-observed,
+                     EL=estimated,
+                     EO=n_total-estimated)
+hiroshima2
+```
+
+```{r}
+hiroshima2[hiroshima2$dosage == 0,]
+hiroshima2[hiroshima2$dosage > 0 & hiroshima2$dosage <= 50,]
+hiroshima2[hiroshima2$dosage > 50,]
+```
+
+```{r}
+hiroshima2[hiroshima2$dosage == 0,] |> summarize(across(6:9, sum)) |> as.data.frame()
+hiroshima2[hiroshima2$dosage > 0 & hiroshima2$dosage <= 50,] |> summarize(across(6:9, sum)) |> as.data.frame()
+hiroshima2[hiroshima2$dosage > 50,] |> summarize(across(6:9, sum)) |> as.data.frame()
+```
+
+```{r}
+#XHL^2
+X_HL <- sum(c((13-11.5844)^2/11.5844,
+                (378-379.4156)^2/379.4156,
+                (13-14.4257)^2/14.4257,
+                (398-396.5743)^2/396.5743,
+                (22-21.9899)^2/21.9899,
+                (64-64.0101)^2/64.0101
+                ))
+X_HL
+1-pchisq(X_HL, df=1)
+```
+
+```{r}
+#Exercises 7.3
+graduates
+
+```
+```{r}
+graduates$survive = as.numeric(graduates$survive)
+graduates$total = as.numeric(graduates$total)
+graduates
+```
+
+```{r}
+aggregate(graduates[c("survive","total")], by = graduates[c("sex")], FUN=sum, na.rm = TRUE) |> mutate(ratio=survive/total)
+```
+
+```{r}
+graduates$year <- factor(graduates$year)
+model.graduates <- glm(cbind(survive, total-survive) ~ year, data=graduates, family=binomial(link='logit'),
+                       na.action = na.omit)
+summary(model.graduates)
+```
+
+```{r}
+graduates$sex <- factor(graduates$sex)
+graduates$faculty <- factor(graduates$faculty)
+model.graduates2 <- glm(cbind(survive, total-survive) ~ faculty, 
+                       data=graduates, family=binomial(link='logit'),
+                       na.action = na.omit)
+summary(model.graduates2)
+```
+
+```{r}
+model.graduates.sex <- glm(cbind(survive, total-survive) ~ sex, 
+                       data=graduates, family=binomial(link='logit'),
+                       na.action = na.omit)
+summary(model.graduates.sex)
+```
+
+```{r}
+model.graduates.interact <- glm(cbind(survive, total-survive) ~ faculty*sex, 
+                       data=graduates, family=binomial(link='logit'),
+                       na.action = na.omit)
+summary(model.graduates.interact)
+```
+
+```{r}
+women <- graduates[graduates$sex == "women",]
+men <- graduates[graduates$sex == "men",]
+model.graduates.women <- glm(cbind(survive, total-survive) ~ faculty, 
+                       data=women, family=binomial(link='logit'),
+                       na.action = na.omit)
+summary(model.graduates.women)
+```
+
+```{r}
+model.graduates.men <- glm(cbind(survive, total-survive) ~ faculty, 
+                       data=men, family=binomial(link='logit'),
+                       na.action = na.omit)
+summary(model.graduates.men)
+```
+
+
+## Chapter8 Nominal and Ordinal Logistic Regression 
+
+### 8.2 Multinomial distribution 
+
+If $(X_1,\cdots, X_n)$ is a vector with multinomial distribution, proof that $\text{Cov}(X_i,X_j)=-rp_ip_j$, $i\neq j$ where $r$ is the number of trials of the experiment, $p_i$ is the probability of success for the variable $X_i$.
+$$fdp=f(x_1,...x_n)={r!\over{x_1!x_2!\cdots x_n!}}p_1^{x_1}\cdots p_n^{x_n} $$ if $x_1+x_2+\cdots +x_n=r$
+
+We can use indicator random variables to help simplify the covariance expression. We can interpret the problem as $r$ independent rolls of an $n$ sided die. Let $X_i$ be the number of rolls that result in side $i$ facing up, and let $I_{k}^{(i)}$ be an indicator equal to $1$ when roll $k$ is equal to $i$ and $0$ otherwise. Then, we can express $X_i$ and $X_j$ as follows:
+
+$$\begin{equation}
+X_i = \sum_{k=1}^{r} I_{k}^{(i)}~~~\mathrm{and}~~~X_j = \sum_{k=1}^{r} I_{k}^{(j)}
+\end{equation}$$
+
+Let's re-write the covariance using indicators:
+$$\begin{equation}
+\mathrm{Cov}(X_i,X_j) = E[X_i X_j] - E[X_i]E[X_j]
+\end{equation}$$
+Let's compute the first term:
+$$\begin{eqnarray}
+E[X_i X_j] &=& E\bigg[(\sum_{k=1}^{r}I_{k}^{(i)}) (\sum_{l=1}^{r}I_{l}^{(j)})\bigg] = \sum_{k=l}E\big[I_{k}^{(i)}I_{l}^{(j)}\big]  + \sum_{k\neq l}E\big[I_{k}^{(i)}I_{l}^{(j)}\big] = \\
+&=& 0 + \sum_{k\neq l}E\big[I_{k}^{(i)}\big] E\big[I_{l}^{(j)}\big] = \sum_{k\neq l} p_i p_j = (r^2 - r)p_i p_j
+\end{eqnarray}$$
+where we expanded the product of sums, used linearity of expectation and the fact that when $k=l$ we can't simultaneously roll $i$ and $j$ on the same trial $k=l$ (making the product of indicators zero) Finally we applied independence of rolls that enabled us to write it as a product of probabilities. Let's compute the remaining term:
+$$\begin{equation}
+E[X_i] = E[\sum_{k=1}^{r}I_{k}^{(i)}] = \sum_{k=1}^{r}E[I_{k}^{(i)}] = rp_i
+\end{equation}$$
+Therefore, the covariance equals:
+$$\begin{equation}
+\mathrm{Cov}(X_i,X_j) = E[X_i X_j] - E[X_i]E[X_j] = (r^2-r)p_ip_j - r^2p_ip_j = -r p_i p_j
+\end{equation}$$
+Notice that $\mathrm{Cov}(X_i, X_j) = -r p_i p_j < 0$ is negative, this makes sense intuitively since for a fixed number of rolls $r$, if we roll many outcomes $i$, this reduces the number of possible outcomes $j$, and therefore $X_i$ and $X_j$ are negatively correlated! [reference](https://math.stackexchange.com/questions/1669513/find-the-covariances-of-a-multinomial-distribution)
+
+```{r}
+Cars
+
+```
+
+```{r}
+#Figure 8.1
+library(tidyverse)
+library(ggprism)
+Cars |> group_by(sex, age) |> mutate(
+    age = factor(age, levels = c("18-23", "24-40", "> 40")),
+    proportion = frequency/sum(frequency)
+  ) |> ggplot(aes(x = age, y = proportion, group = response)) +
+  geom_point(size=2) +
+  geom_line(aes(color = response, linetype = response), size=1) +
+  facet_wrap(~sex) + theme_bw() + theme(
+  # Hide panel borders and remove grid lines
+  #panel.border = element_line(colour = "black"),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  # Change axis line
+  #axis.line = element_line(colour = "black")
+) + scale_y_continuous(limits = c(0, 0.8), expand = c(0, 0)) +
+  theme_prism(palette = "black_and_white", base_size = 16) +
+  scale_colour_prism(palette = "colorblind_safe")
+```
+
+```{r}
+factor(Cars$age)
+factor(Cars$sex)
+factor(Cars$response)
+```
+
+```{r}
+library(nnet)
+Cars2 <- Cars |> group_by(sex, age) |> mutate(
+    age = factor(age, levels = c("18-23", "24-40", "> 40")),
+    sex = factor(sex, levels = c("women", "men")),
+    response = factor(response, levels = c("no/little", "important", "very important"))
+)
+
+res.cars=multinom(response~age+sex, weights=frequency,data=Cars2)
+```
+
+```{r}
+summary(res.cars)
+```
+
+```{r}
+summary(res.cars)$coefficients
+summary(res.cars)$standard.errors
+```
+
+```{r}
+#Odds ratio
+exp(summary(res.cars)$coefficients)
+#95% CI
+exp(summary(res.cars)$coefficients+qnorm(0.025)*summary(res.cars)$standard.errors)
+exp(summary(res.cars)$coefficients+qnorm(0.975)*summary(res.cars)$standard.errors)
+```
+
+```{r}
+#(95% confidence interval)
+exp(summary(res.cars)$coefficients - summary(res.cars)$standard.errors * 1.96)
+exp(summary(res.cars)$coefficients + summary(res.cars)$standard.errors * 1.96)
+```
+
+
+```{r}
+logLik(res.cars)
+```
+
+```{r}
+#minimal model
+res.cars.mini=multinom(response~1, weights=frequency,data=Cars2)
+summary(res.cars.mini)
+logLik(res.cars.mini)
+```
+
+
+```{r}
+# the likelihood ratio chi-squared statistic C
+2*(c(logLik(res.cars) - logLik(res.cars.mini)))
+#degrees of freedom
+8-2
+```
+```{r}
+#p value with chisq(6)
+1-pchisq(2*(c(logLik(res.cars) - logLik(res.cars.mini))), df=6)
+```
+
+```{r}
+#pseudo R^2
+
+c((logLik(res.cars.mini) - logLik(res.cars))/logLik(res.cars.mini))
+```
+
+```{r}
+#AIC
+res.cars$AIC
+-2* logLik(res.cars)+2*res.cars$edf
+```
+
+```{r}
+attr(logLik(res.cars), "df")
+```
+```{r}
+#coefficients
+coef(res.cars)
+#fitted values
+fitted(res.cars)
+```
+
+```{r}
+#Table 8.3
+fitted(res.cars) |> bind_cols(Obs.freq = Cars2$frequency, 
+                              sex = Cars2$sex,
+                              age = Cars2$age) |> 
+  group_by(sex, age) |> 
+  mutate(group.total = sum(Obs.freq)) |> 
+  mutate(fitted.no.little = `no/little`*group.total,
+         fitted.important = important*group.total,
+         fitted.very.important = `very important`*group.total,
+         residual.no.little = (Obs.freq-fitted.no.little)/sqrt(fitted.no.little),
+         residual.important = (Obs.freq-fitted.important)/sqrt(fitted.important),
+         residual.very.important = (Obs.freq-fitted.very.important)/sqrt(fitted.very.important)
+         ) |> as.data.frame()
+```
+
+```{r}
+#Table 8.3
+options(paged.print = FALSE,
+        pillar.print_max = 25, 
+        pillar.print_min = 25)
+fitted(res.cars) |> as_tibble() |> distinct(.keep_all = TRUE)|> pivot_longer(
+    cols = c('no/little', 'important', 'very important'), 
+    names_to = "Importance.Rating", 
+    values_to = "Estimated.probability"
+  ) |> bind_cols(Obs.freq = Cars2$frequency, 
+                              sex = Cars2$sex,
+                              age = Cars2$age) |> 
+  group_by(sex, age) |> 
+  mutate(group.total = sum(Obs.freq)) |> 
+  mutate(fitted.value = Estimated.probability*group.total,
+         Pearson.residual = (Obs.freq-fitted.value)/sqrt(fitted.value)
+         )
+```
+
+```{r}
+sum.squared.residuals <- fitted(res.cars) |> as_tibble() |> distinct(.keep_all = TRUE)|> pivot_longer(
+    cols = c('no/little', 'important', 'very important'), 
+    names_to = "Importance.Rating", 
+    values_to = "Estimated.probability"
+  ) |> bind_cols(Obs.freq = Cars2$frequency, 
+                              sex = Cars2$sex,
+                              age = Cars2$age) |> 
+  group_by(sex, age) |> 
+  mutate(group.total = sum(Obs.freq)) |> 
+  mutate(fitted.value = Estimated.probability*group.total,
+         Pearson.residual = (Obs.freq-fitted.value)/sqrt(fitted.value)
+         ) |> ungroup() |> 
+  summarize(sum(Pearson.residual^2))
+sum.squared.residuals
+```
+
+```{r}
+res.cars.max=multinom(response~age+sex+age*sex, weights=frequency,data=Cars2)
+res.cars.max
+```
+
+```{r}
+summary(res.cars.max)
+```
+
+```{r}
+logLik(res.cars.max)
+attr(logLik(res.cars.max), "df")
+```
+
+```{r}
+#the deviance
+2*(logLik(res.cars.max) - logLik(res.cars))
+#The degrees of freedom associated with this deviance
+attr(logLik(res.cars.max), "df") - attr(logLik(res.cars), "df")
+```
+
+```{r}
+difference <- 2*(logLik(res.cars.max) - logLik(res.cars))
+difference
+1-pchisq(difference,df=4)
+```
+
+
+
+```{r}
+library(MASS)
+res.polr=polr(response~age+sex, weights=frequency,data=Cars2)
+res.polr
+logLik(res.polr)
+```
+
+```{r}
+summary(res.polr)
+```
+
+```{r}
+coefficients <- summary(res.polr)$coefficients
+coefficients
+```
+
+
+The following proportional odds model was fitted to these data:  
+
+$$\log\left(\frac{\pi_1}{\pi_2+\pi_3}\right)=\beta_{01}+\beta_{1}x_1+\beta_{2}x_2+\beta_{3}x_3$$
+$$\log\left(\frac{\pi_1+\pi_2}{\pi_3}\right)=\beta_{02}+\beta_{1}x_1+\beta_{2}x_2+\beta_{3}x_3$$
+
+```{r}
+#Table8.4
+tibble(Estimate_b= c(coefficients[4,1], #beta_01
+                      coefficients[5,1], #beta_02
+                      coefficients[3,1], #beta_1
+                      coefficients[1,1], #beta_2
+                      coefficients[2,1]),#beta_3
+       Standard_error_b= c(coefficients[4,2],
+                      coefficients[5,2],
+                      coefficients[3,2],
+                      coefficients[1,2],
+                      coefficients[2,2]),
+       Odds_ratio_OR=exp(Estimate_b),
+       `95%_CI_low`=c(exp(Estimate_b+qnorm(0.025)*Standard_error_b)),
+       `95%_CI_high`=c(exp(Estimate_b+qnorm(0.975)*Standard_error_b))
+)
+```
+
+```{r}
+res.polr.mini=polr(response~1, weights=frequency,data=Cars2)
+summary(res.polr.mini)
+```
+```{r}
+logLik(res.polr)
+logLik(res.polr.mini)
+```
+
+```{r}
+#C
+2*(logLik(res.polr)-logLik(res.polr.mini))
+#R^2
+(logLik(res.polr.mini)-logLik(res.polr))/logLik(res.polr.mini)
+#AIC
+-2*logLik(res.polr)+2*attr(logLik(res.polr), "df")
+res.polr$deviance
+```
+
+
+
+```{r}
+fitted(res.polr)
+```
+
+```{r}
+fitted(res.polr) |> as_tibble() |> distinct(.keep_all = TRUE)|> pivot_longer(
+    cols = c('no/little', 'important', 'very important'), 
+    names_to = "Importance.Rating", 
+    values_to = "Estimated.probability"
+  ) |> bind_cols(Obs.freq = Cars2$frequency, 
+                              sex = Cars2$sex,
+                              age = Cars2$age) |> 
+  group_by(sex, age) |> 
+  mutate(group.total = sum(Obs.freq)) |> 
+  mutate(fitted.value = Estimated.probability*group.total,
+         Pearson.residual = (Obs.freq-fitted.value)/sqrt(fitted.value)
+         )
+```
+
+
+
+```{r}
+sum.squared.residuals <- fitted(res.polr) |> as_tibble() |> distinct(.keep_all = TRUE)|> pivot_longer(
+    cols = c('no/little', 'important', 'very important'), 
+    names_to = "Importance.Rating", 
+    values_to = "Estimated.probability"
+  ) |> bind_cols(Obs.freq = Cars2$frequency, 
+                              sex = Cars2$sex,
+                              age = Cars2$age) |> 
+  group_by(sex, age) |> 
+  mutate(group.total = sum(Obs.freq)) |> 
+  mutate(fitted.value = Estimated.probability*group.total,
+         Pearson.residual = (Obs.freq-fitted.value)/sqrt(fitted.value)
+         ) |> ungroup() |> 
+  summarize(sum(Pearson.residual^2))
+sum.squared.residuals
+```
+
+```{r}
+1-pchisq(4.56, df=7)
+```
+
+
+### Exercises  
+
+####  8.1   
+
+If there are only $J = 2$ response categories, show that models 
+Suppose the first category is the reference
+category, the logits for the other categories are defined by $$logit(\pi_i)=\log(\pi_j/\pi_1)=\mathbf x_j^T\boldsymbol\beta_j,\quad \text{for}\quad j=2,\dots,J.\tag{8.4}$$ 
+The cumulative logit model is 
+$$\log\left(\frac{\pi_1+\cdots+\pi_j}{\pi_{j+1}+\cdots+\pi_J}\right)=\mathbf x_j^T\boldsymbol\beta_j\tag{8.13}$$
+The adjacent category logit model is 
+$$\log\left(\frac{\pi_j}{\pi_{j+1}}\right)=\mathbf x_j^T\boldsymbol\beta_j\tag{8.15}$$ and Continuation ratio logit model  $$\log\left(\frac{\pi_j}{\pi_{j+1}+\cdots+\pi_{J}}\right)=\mathbf x_j^T\boldsymbol\beta_j\tag{8.16}$$ all reduce to the logistic regression model for binary data. 
+
+$$\log\left(\frac{\pi}{1-\pi}\right)=\mathbf x_j^T\boldsymbol\beta_j$$
+
+```{r}
+#Exercises 8.2
+housing
+```
+```{r}
+housing$Sat2 <- factor(housing$Sat, levels = c("Low","Medium","High"))
+housing$Type2 <- factor(housing$Type, levels = c("Tower","Apartment","Atrium","Terrace"))
+housing$Cont2 <- factor(housing$Cont, levels = c("Low","High"))
+housing
+```
+
+```{r}
+library(nnet)
+#levels of satisfaction and type of housing
+res.housing.1=multinom(Sat2~Type2, weights=Freq,data=housing)
+summary(res.housing.1)
+```
+
+```{r}
+#levels of satisfaction and type of contact
+res.housing.2=multinom(Sat2~Cont2, weights=Freq,data=housing)
+summary(res.housing.2)
+```
+
+```{r}
+#levels of satisfaction and type of housing and contact
+res.housing.3=multinom(Sat2~Type2+Cont2, weights=Freq,data=housing)
+summary(res.housing.3)
+res.housing.3$edf
+```
+
+```{r}
+#Exercise 8.3
+tumor
+```
+
+```{r}
+tumor$treatment2 <- factor(tumor$treatment, levels = c("sequential","alternating"))
+tumor$sex2 <- factor(tumor$sex, levels = c("male","female"))
+tumor$response2 <- factor(tumor$response, levels = c("progressive","no change","partial remission","complete remission"))
+tumor
+```
+
+```{r}
+res.tumor=multinom(response2~treatment2+sex2, weights=frequency,data=tumor)
+summary(res.tumor)
+res.tumor$edf
+```
+
+```{r}
+coefficients <- summary(res.tumor)$coefficients
+coefficients
+```
+
+```{r}
+#alternating vs. sequential
+exp(coefficients[,2])
+```
+
+```{r}
+#Wald statistic
+coefficients
+coefficients/summary(res.tumor)$standard.errors
+
+```
+
+```{r}
+fitted(res.tumor)
+```
+
+```{r}
+fitted(res.tumor) |> as_tibble() |> distinct(.keep_all = TRUE)|> pivot_longer(
+    cols = c('progressive', 'no change', 'partial remission', 'complete remission'), 
+    names_to = "stage", 
+    values_to = "Estimated.probability"
+  ) |> bind_cols(Obs.freq = tumor$frequency, 
+                              sex = tumor$sex2,
+                              treatment = tumor$treatment2) |> 
+  group_by(sex, treatment) |> 
+  mutate(group.total = sum(Obs.freq)) |> 
+  mutate(fitted.value = Estimated.probability*group.total,
+         Pearson.residual = (Obs.freq-fitted.value)/sqrt(fitted.value)
+         )
+```
+
+```{r}
+fitted(res.tumor) |> as_tibble() |> distinct(.keep_all = TRUE)|> pivot_longer(
+    cols = c('progressive', 'no change', 'partial remission', 'complete remission'), 
+    names_to = "stage", 
+    values_to = "Estimated.probability"
+  ) |> bind_cols(Obs.freq = tumor$frequency, 
+                              sex = tumor$sex2,
+                              treatment = tumor$treatment2) |> 
+  group_by(sex, treatment) |> 
+  mutate(group.total = sum(Obs.freq)) |> 
+  mutate(fitted.value = Estimated.probability*group.total,
+         Pearson.residual = (Obs.freq-fitted.value)/sqrt(fitted.value)
+         ) |> ungroup() |> 
+  summarize(sum(Pearson.residual^2))
+```
+
+```{r}
+res.tumor$edf
+1-pchisq(2.46, df=res.tumor$edf)
+```
+
+## Chapter9 Poisson Regression and Log-Linear Models 
+
+```{r}
+doctors
+```
+
+```{r}
+knitr::kable(doctors)
+```
+```{r}
+pander::pander( doctors, style='rmarkdown')
+```
+
+### 9.2 Poisson regression  
+
+```{r}
+library(tidyverse)
+library(ggprism)
+doctors |> ggplot(aes(x=age,
+                      y=deaths*100000/`person-years`,
+                      group=smoking))+geom_point(size=3, aes(shape=smoking)) +
+  scale_colour_prism(palette = "colorblind_safe", 
+                     labels = c("No smoking", "smoking")) +
+  theme_prism(border = TRUE, 
+              palette = "black_and_white", 
+              base_size = 12)
+```
+
+
+```{r}
+doctors |> mutate(agecat = c(1:5,1:5),
+              agesq = agecat^2,
+              smoke = c(rep(1,5), rep(0,5)),
+              smokage = c(1:5, rep(0,5)))
+```
+
+
+
+```{r}
+doctors2 <- doctors |> mutate(agecat = c(1:5,1:5),
+              agesq = agecat^2,
+              smoke = c(rep(1,5), rep(0,5)),
+              smokage = c(1:5, rep(0,5)))
+doctors2
+```
+
+```{r}
+res.doc<-glm(deaths~agecat + agesq + smoke + smoke:agecat + offset(log(`person-years`)),
+             family=poisson(link="log"),data=doctors2)
+summary(res.doc)
+```
+
+
+```{r}
+summary(res.doc)$coefficients
+```
+
+```{r}
+#Table9.2
+tibble(beta_hat=c(res.doc$coefficients[2:5]),
+       se_beta_hat=c(summary(res.doc)$coefficients[2:5,2]),
+       Wald_statistic=beta_hat/se_beta_hat,
+       p_value=2*(1-pnorm(abs(Wald_statistic))),
+       Rate_ratio=exp(beta_hat),
+       `95%CI_low`=exp(beta_hat+qnorm(0.025)*summary(res.doc)$coefficients[2:5,2]),
+       `95%CI_high`=exp(beta_hat+qnorm(0.975)*summary(res.doc)$coefficients[2:5,2])
+       )
+```
+
+
+
+```{r}
+fit_p=c(fitted(res.doc))
+fit_p
+```
+
+```{r}
+pearsonresid<-(doctors$deaths-fit_p)/sqrt(fit_p)
+pearsonresid
+chisq<-sum(pearsonresid*pearsonresid)
+chisq
+```
+
+```{r}
+devres<-sign(doctors2$deaths-fit_p)*(sqrt(2*(doctors2$deaths*log(doctors2$deaths/fit_p)-(doctors2$deaths-fit_p))))
+devres
+deviance<-sum(devres*devres)
+deviance
+```
+
+```{r}
+#Table9.3
+tibble(Age.cat=doctors2$agecat,
+       smoking.cat=doctors2$smoke,
+       Observed.death=doctors2$deaths,
+       Expected.death=fit_p,
+       Pearson.residual=pearsonresid,
+       Deviance.residual=devres)
+```
+
+
+```{r}
+res.doc$deviance
+```
+
+
+```{r}
+res.doc.mini<-glm(deaths~1 + offset(log(`person-years`)),
+             family=poisson(link="log"),data=doctors2)
+summary(res.doc.mini)
+```
+
+```{r}
+logLik(res.doc.mini)
+logLik(res.doc)
+```
+
+```{r}
+#C
+
+2*(logLik(res.doc)-logLik(res.doc.mini))
+```
+
+```{r}
+1-pchisq(933.432, df=4)
+```
+
+```{r}
+#pseudo R2
+(logLik(res.doc.mini)-logLik(res.doc))/logLik(res.doc.mini)
+```
+
+```{r}
+#Table9.4
+melanoma <- structure(list(type = c("hutchinson's melanotic freckle", "hutchinson's melanotic freckle", 
+"hutchinson's melanotic freckle", "superficial spreading melanoma", 
+"superficial spreading melanoma", "superficial spreading melanoma", 
+"nodular", "nodular", "nodular", "indeterminate", "indeterminate", 
+"indeterminate"), site = c("head & neck", "trunk", "extremities", 
+"head & neck", "trunk", "extremities", "head & neck", "trunk", 
+"extremities", "head & neck", "trunk", "extremities"), frequency = c(22, 
+2, 10, 16, 54, 115, 19, 33, 73, 11, 17, 28)), class = c("tbl_df", 
+"tbl", "data.frame"), row.names = c(NA, -12L))
+melanoma
+```
+
+```{r}
+library(tidyverse)
+melanoma |> tidyr::pivot_wider(names_from = type, values_from = frequency) |> 
+  mutate(sum=`hutchinson's melanotic freckle`+ `superficial spreading melanoma` +nodular+ indeterminate)
+```
+
+
+```{r}
+library(tidyverse)
+library(gt)
+melanoma |> pivot_wider(names_from = type, values_from = frequency) |> 
+  mutate(sum=`hutchinson's melanotic freckle`+ `superficial spreading melanoma` +nodular+ indeterminate) |> 
+  gt(rowname_col = "site") |> 
+  grand_summary_rows(fns = list(fn = "sum"))
+```
+
+```{r}
+melanoma2 <- melanoma |> pivot_wider(names_from = type, values_from = frequency) |> 
+  mutate(sum=`hutchinson's melanotic freckle`+ `superficial spreading melanoma` +nodular+ indeterminate) |> 
+  gt(rowname_col = "site") |> 
+  grand_summary_rows(fns = list(fn = "sum"))
+melanoma2
+```
+
+```{r}
+melanoma3 <- melanoma |> pivot_wider(names_from = type, values_from = frequency) |> 
+  mutate(sum=`hutchinson's melanotic freckle`+ `superficial spreading melanoma` +nodular+ indeterminate)
+melanoma3
+```
+
+
+
+```{r}
+melanoma3[4,] <- list("sum", 34,	185,	125,	56,	400)
+melanoma3
+```
+
+```{r}
+#row ratio
+melanoma3[4, 2:5]/400
+#column ratio
+melanoma3[1:3, 6]/400
+```
+```{r}
+str(matrix(unlist(melanoma3[4, 2:5]/400)))
+```
+
+```{r}
+m1 <- matrix(unlist(melanoma3[4, 2:5]/400), nrow=1)
+m1
+```
+
+```{r}
+m2 <- matrix(t(melanoma3[1:3, 6]/400), ncol = 1)
+m2
+```
+
+```{r}
+str(m1)
+str(m2)
+```
+
+```{r}
+m2 %*% m1
+(m2 %*% m1) * 400
+estimated <- (m2 %*% m1) * 400
+```
+
+```{r}
+unlist(t(melanoma3[1:3, 2:5]))
+```
+
+```{r}
+matrix(unlist(t(melanoma3[1:3, 2:5])), ncol=4, byrow = T)
+observed <- matrix(unlist(t(melanoma3[1:3, 2:5])), ncol=4, byrow = T)
+```
+
+```{r}
+#X^2
+(observed-estimated)^2/estimated
+sum((observed-estimated)^2/estimated)
+```
+
+```{r}
+1-pchisq(65.81293, df=6)
+```
+```{r}
+melanoma5 <- melanoma |> mutate(tumor = factor(type, levels = c("hutchinson's melanotic freckle", 
+                                                   "superficial spreading melanoma", 
+                                                   "nodular",
+                                                   "indeterminate")),
+                   site2 = factor(site, levels = c("head & neck", 
+                                                   "trunk", 
+                                                   "extremities"))
+                   )
+melanoma5
+```
+
+
+```{r}
+ressat.melanoma<-glm(frequency~tumor*site2,family=poisson(),data=melanoma5)
+ressat.melanoma
+```
+
+```{r}
+summary(ressat.melanoma)
+```
+```{r}
+logLik(ressat.melanoma)
+
+```
+
+```{r}
+ressat.melanoma.add<-glm(frequency~tumor+site2,family=poisson(),data=melanoma5)
+summary(ressat.melanoma.add)
+```
+
+
+```{r}
+#D
+logLik(ressat.melanoma.add)
+2*(logLik(ressat.melanoma)-logLik(ressat.melanoma.add))
+```
+
+```{r}
+ressat.melanoma.add$fitted.values
+melanoma5$frequency
+#chi-square
+sum((ressat.melanoma.add$fitted.values-melanoma5$frequency)^2/ressat.melanoma.add$fitted.values)
+```
+
+```{r}
+ressat.melanoma.mini<-glm(frequency~1,family=poisson(),data=melanoma5)
+summary(ressat.melanoma.mini)
+```
+
+```{r}
+#D
+logLik(ressat.melanoma.mini)
+2*(logLik(ressat.melanoma.add)-logLik(ressat.melanoma.mini))
+```
+
+```{r}
+#pseudo R2
+(logLik(ressat.melanoma.mini)-logLik(ressat.melanoma))/logLik(ressat.melanoma.mini)
+```
+
+```{r}
+#Table 9.7
+ulcer
+```
+
+```{r}
+ulcer$ulcer
+```
+
+```{r}
+#GD ulcer site
+#CC case-control status
+#AP aspirin
+library(tidyverse)
+ulcer2 <- ulcer |> mutate(GD = factor(ulcer, levels = c("gastric", "duodenal")),
+                          CC = factor(`case-control`, levels = c("control", "case")),
+                          AP = factor(aspirin, levels = c("non-user", "user"))
+                   )
+ulcer2
+```
+
+
+```{r}
+res1.aspirin<-glm(frequency~GD + CC + GD*CC, family=poisson(), data=ulcer2)
+summary(res1.aspirin)
+```
+
+```{r}
+res2.aspirin<-glm(frequency~GD + CC + GD*CC + AP, family=poisson(), data=ulcer2)
+summary(res2.aspirin)
+```
+
+```{r}
+res3.aspirin<-glm(frequency~GD + CC + GD*CC + AP + AP*CC,family=poisson(), data=ulcer2)
+summary(res3.aspirin)
+```
+
+```{r}
+res4.aspirin<-glm(frequency~GD + CC + GD*CC + AP + AP*CC + AP*GD, family=poisson(), data=ulcer2)
+summary(res4.aspirin)
+```
+
+```{r}
+#Table 9.11
+tibble(Models=c("GD+CC+GDXCC",
+                "GD+CC+GDXCC+AP",
+                "GD+CC+GDXCC+AP+APXCC",
+                "GD+CC+GDXCC+AP+APXCC++APXGD"),
+       D.F.=c(res1.aspirin$df.residual,
+              res2.aspirin$df.residual,
+              res3.aspirin$df.residual,
+              res4.aspirin$df.residual),
+       Deviance=c(res1.aspirin$deviance,
+                  res2.aspirin$deviance,
+                  res3.aspirin$deviance,
+                  res4.aspirin$deviance)
+       ) |> as.data.frame()
+```
+
+```{r}
+#delta D comparison of aspirin use between cases and controls
+res2.aspirin$deviance - res3.aspirin$deviance
+```
+
+```{r}
+(1-pchisq(11.25082, df=1))
+```
+
+```{r}
+#delta D, difference between ulcer sites
+res3.aspirin$deviance - res4.aspirin$deviance
+```
+
+```{r}
+(1-pchisq(4.255456, df=1))
+```
+
+
+```{r}
+#chi-square
+sum((res4.aspirin$fitted.values-ulcer2$frequency)^2/res4.aspirin$fitted.values)
+```
+
+
+```{r}
+(1-pchisq(6.48795, df=1))
+```
+
+```{r}
+res4.aspirin$fitted.values
+res4.aspirin$deviance
+```
+
+####  Exercises 9.1  
+
+The joint probability distribution:
+$$f(\mathbf y;\boldsymbol\mu)=\prod_{i=1}^{N}\mu_i^{y_i}e^{-\mu_i}/y_i!$$
+
+$$l(\mathbf y;\boldsymbol\mu)=\sum_{i=1}^{N}(y_i\log(\mu_i)-\mu_i-\log(y_i!))=\sum_{i=1}^{N}\left(y_i\left(\beta_1+\sum_{j=2}^{J}x_{ij}\beta_j\right)-\exp\left(\beta_1+\sum_{j=2}^{J}x_{ij}\beta_j\right)-\log(y_i!)\right)$$ 
+The score statistic for $\beta_1$ is 
+$$\frac{\partial l(\mathbf y;\boldsymbol\mu)}{\partial \beta_1}=\sum_{i=1}^{N}\left(y_i-\mu_i\right)$$
+
+
+```{r}
+#Exercises 9.2
+insurance
+
+```
+
+```{r}
+insurance$car2 <- factor(insurance$car)
+insurance$age2 <- factor(insurance$age)
+insurance$district2 <- factor(insurance$district)
+```
+
+```{r}
+insurance |> group_by(c(car2)) |> mutate(rate=sum(y)/sum(n))
+```
+
+```{r}
+insurance |> ggplot(aes(x=car2, y=y/n)) + 
+  geom_point(size=3, aes(color=age2)) +
+  facet_grid(~district2) +
+  scale_colour_prism(palette = "candy_bright") +
+  theme_prism(border = TRUE, 
+              palette = "black_and_white", 
+              base_size = 12) +
+  labs(x="cars", y="rate")
+```
+
+```{r}
+res.insurance<-glm(y/n~car2+age2+district2+car2*age2+car2*district2+age2*district2, family=quasipoisson(), data=insurance)
+summary(res.insurance)
+```
+
+```{r}
+res.insurance2<-glm(y/n~car+age+district, family=quasipoisson(), data=insurance)
+summary(res.insurance2)
+```
+
+```{r}
+#Exercises 9.3
+vaccine
+```
+
+```{r}
+vaccine.frequency <- matrix(c(vaccine$frequency), ncol = 2, byrow = FALSE)
+vaccine.frequency
+chisq.test(vaccine.frequency)
+```
+
+```{r}
+res.vaccine<-glm(frequency~treatment+response,family=poisson(),data=vaccine)
+summary(res.vaccine)
+```
+
+```{r}
+res.vaccine$fitted.values
+vaccine$frequency
+sum((vaccine$frequency-res.vaccine$fitted.values)^2/res.vaccine$fitted.values)
+```
+
+```{r}
+chisq.stat <- sum((vaccine$frequency-res.vaccine$fitted.values)^2/res.vaccine$fitted.values)
+1-pchisq(chisq.stat, df=res.vaccine$df.residual)
+res.vaccine$deviance
+res.vaccine$residuals
+```
+
+```{r}
+#For the placebo group the estimated probabilities for the ‘small’, ‘moderate’ and ‘large’ responses are
+res.vaccine$coefficients
+small <- exp(res.vaccine$coefficients[4])
+moderate <- exp(res.vaccine$coefficients[3])
+total <- sum(small, moderate, 1)
+#small
+small/total
+#moderate
+moderate/total
+#large
+1/total
+```
+
+## Chapter10 Survival Analysis  
+
+
+```{r}
+#Table10.1
+remission
+```
+
+
+```{r}
+remission |> ggplot(aes(x=time)) +
+  geom_bar(stat = "count") + 
+  facet_wrap(vars(group)) + theme_bw() + theme(
+  # Hide panel borders and remove grid lines
+  #panel.border = element_line(colour = "black"),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  # Change axis line
+  #axis.line = element_line(colour = "black")
+)
+```
+
+```{r}
+#Table10.2
+library(tidyverse)
+data.frame(
+  n=c(21,21,17,15,12,11,7,6),
+  d=c(0,3,1,1,1,1,1,1)
+) |> mutate(s=(n-d)/n,
+            S=cumprod(s))
+```
+
+```{r}
+survival_treatment <- data.frame(
+  n=c(21,21,17,15,12,11,7,6),
+  d=c(0,3,1,1,1,1,1,1)
+) |> mutate(time = c(0,6,7,10,13,16,22,23),
+            treatment = rep("treatment", 8),
+            s=(n-d)/n,
+            S=cumprod(s))
+survival_treatment
+```
+
+```{r}
+#
+survival_control <- data.frame(
+  n=c(21,21,19,17,16,14,12,8,6,4,3,2,1),
+  d=c(0,2,2,1,2,2,4,2,2,1,1,1,1)
+) |> mutate(time = c(0,1,2,3,4,5,8,11,12,15,17,22,23),
+            treatment = rep("control", 13),
+            s=(n-d)/n,
+            S=cumprod(s))
+survival_control
+```
+
+```{r}
+data <- rbind(survival_control, survival_treatment)
+data
+```
+
+```{r}
+data |> ggplot(aes(x=time, y=S)) + geom_step(aes(linetype = treatment)) + theme_bw() + theme(
+  # Hide panel borders and remove grid lines
+  #panel.border = element_line(colour = "black"),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  # Change axis line
+  #axis.line = element_line(colour = "black")
+) + theme_prism(border = TRUE, 
+              palette = "black_and_white", 
+              base_size = 12) 
+```
+
+```{r}
+#cumulative hazard function
+data |> mutate(logH=log(-log(S)),
+               logY=log(time))
+```
+
+
+```{r}
+data |> mutate(logH=log(-log(S)),
+               logY=log(time)) |> ggplot(aes(x=logY, y=logH)) + geom_point(aes(shape = treatment), size=3) + 
+  theme_bw() + theme(
+  # Hide panel borders and remove grid lines
+  #panel.border = element_line(colour = "black"),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  # Change axis line
+  #axis.line = element_line(colour = "black")
+)
+```
+```{r}
+remission
+```
+
+
+```{r}
+#the exponential model can be fitted:
+res.gehanexp<-glm(censored==0~group + offset(log(time)), family=poisson(), 
+                  data=remission)
+summary(res.gehanexp)
+#AIC
+AIC(res.gehanexp)
+-2* logLik(res.gehanexp)+2*2
+```
+
+```{r}
+log(remission$time)
+offset(log(remission$time))
+```
+
+```{r}
+mu <- res.gehanexp$fitted.values
+y <- remission$time
+m <- sum(remission$censored == 0)
+delta <- (remission$censored * -1)+1
+#lambda_hat
+m/sum((mu-delta)*log(y), na.rm = TRUE)
+```
+
+
+
+```{r}
+library(survival)
+Surv(remission$time,remission$censored==0)
+res.gehan<-survreg(Surv(time,censored==0)~group, dist="exponential", data=remission)
+summary(res.gehan)
+#AIC
+AIC(res.gehan)
+-2* logLik(res.gehan)+2*2
+```
+
+```{r}
+res.gehan.weibull <-survreg(Surv(time,censored==0)~group,dist="weibull", data=remission)
+summary(res.gehan.weibull)
+```
+
+```{r}
+res.gehan.weibull$scale
+```
+
+```{r}
+AIC(res.gehan.weibull)
+```
+
+```{r}
+#leukemia_survival <- read.csv("leukemia_survival.csv", sep=" ", header = FALSE)
+#colnames(leukemia_survival) <- c("Survival.time","White.blood.cell","Survival.time","White.blood.cell")
+#leukemia_survival2 <- rbind(leukemia_survival[,1:2], leukemia_survival[,3:4])
+#leukemia_survival2$AG <- c(rep("positive", 17), rep("negative", 17))
+#leukemia_survival2
+```
+
+```{r}
+#Table10.4
+leukemia_survival <- structure(list(Survival.time = c(65L, 156L, 100L, 134L, 16L, 
+108L, 121L, 4L, 39L, 143L, 56L, 26L, 22L, 1L, 1L, 5L, 65L, 56L, 
+65L, 17L, 7L, 16L, 22L, 3L, 4L, 2L, 3L, 8L, 4L, 3L, 30L, 4L, 
+43L, NA), White.blood.cell = c(2.3, 0.75, 4.3, 2.6, 6, 10.5, 
+10, 17, 5.4, 7, 9.4, 32, 35, 100, 100, 52, 100, 4.4, 3, 4, 1.5, 
+9, 5.3, 10, 19, 27, 28, 31, 26, 21, 79, 100, 100, NA), AG = c("positive", 
+"positive", "positive", "positive", "positive", "positive", "positive", 
+"positive", "positive", "positive", "positive", "positive", "positive", 
+"positive", "positive", "positive", "positive", "negative", "negative", 
+"negative", "negative", "negative", "negative", "negative", "negative", 
+"negative", "negative", "negative", "negative", "negative", "negative", 
+"negative", "negative", "negative")), row.names = c(NA, -34L), class = "data.frame")
+leukemia_survival
+```
+```{r}
+#Exercises 10.1
+survival_AG_positive <- data.frame(
+  n=c(17,17,15,14,13,12,11,10,9,8,6,5,4,3,2,1),
+  d=c(0,2,1,1,1,1,1,1,1,2,1,1,1,1,1,1) #"0to1", "1to4", "4to5", "5to16", "16to22", "22to26","26to39","39to56", "56to65","65to100","100to108","108to121","121to134","134to143","143to156","156to..."
+) |> mutate(time = c(0, unique(sort(leukemia_survival[leukemia_survival$AG == "positive",]$Survival.time))),
+            AG = rep("positive", 16),
+            s=(n-d)/n,
+            S=cumprod(s))
+survival_AG_positive
+```
+
+```{r}
+survival_AG_negative <- data.frame(
+  n=c(16,16,15,12,9,8,7,6,5,4,3,2,1),
+  d=c(0,1,3,3,1,1,1,1,1,1,1,1,1) #"0to2", 2to3", "3to4", "4to7", "7to8", "8to16", "16to17","17to22","22to30", "30to43","43to56","56to65","65to..."
+) |> mutate(time = c(0, unique(sort(leukemia_survival[leukemia_survival$AG == "negative",]$Survival.time))),
+            AG = rep("negative", 13),
+            s=(n-d)/n,
+            S=cumprod(s))
+survival_AG_negative
+```
+
+```{r}
+survival_AG <- rbind(survival_AG_positive, survival_AG_negative)
+survival_AG
+```
+
+```{r}
+survival_AG |> ggplot(aes(x=time, y=S)) + geom_step(aes(linetype = AG)) + theme_bw() + theme(
+  # Hide panel borders and remove grid lines
+  #panel.border = element_line(colour = "black"),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  # Change axis line
+  #axis.line = element_line(colour = "black")
+) + theme_prism(border = TRUE, 
+              palette = "black_and_white", 
+              base_size = 12) 
+```
+
+
+```{r}
+#cumulative hazard function
+survival_AG |> mutate(logH=log(-log(S)),
+               logY=log(time))
+```
+```{r}
+survival_AG |> mutate(logH=log(-log(S)),
+               logY=log(time)) |> ggplot(aes(x=logY, y=logH)) + geom_point(aes(shape = AG), size=3) + 
+  theme_bw() + theme(
+  # Hide panel borders and remove grid lines
+  #panel.border = element_line(colour = "black"),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  # Change axis line
+  #axis.line = element_line(colour = "black")
+)
+```
+
+```{r}
+#the exponential model can be fitted:
+res.leukemia_survival.poisson<-glm(rep(1, length(AG))~AG + offset(log(Survival.time)), family=poisson(), 
+                  data=leukemia_survival)
+summary(res.leukemia_survival.poisson)
+#AIC
+AIC(res.leukemia_survival.poisson)
+-2* logLik(res.leukemia_survival.poisson)+2*2
+```
+
+
+```{r}
+res.leukemia_survival.weibull <-survreg(Surv(Survival.time)~AG,dist="weibull", data=leukemia_survival)
+summary(res.leukemia_survival.weibull)
+```
+
+```{r}
+mu <- res.leukemia_survival.poisson$fitted.values
+y <- leukemia_survival$Survival.time[1:33]
+m <- length(mu)
+#lambda_hat
+m/sum((mu-1)*log(y), na.rm = TRUE)
+```
+
+```{r}
+res.leukemia_survival.weibull2 <-survreg(Surv(Survival.time)~AG+log(White.blood.cell),dist="weibull", data=leukemia_survival)
+summary(res.leukemia_survival.weibull2)
+```
+
+```{r}
+exp(-0.3103)
+```
+
+## Chapter11 Clustered and Longitudinal Data  
+
+```{r}
+stroke.wide
+```
+
+```{r}
+library(tidyverse)
+stroke.wide |> pivot_longer(
+    cols = starts_with("week"), 
+    names_to = "week", 
+    values_to = "score",
+    values_drop_na = TRUE
+  ) |> 
+  mutate(
+    week = readr::parse_number(week)
+  )
+```
+```{r}
+stroke.long <- stroke.wide |> pivot_longer(
+    cols = starts_with("week"), 
+    names_to = "week", 
+    values_to = "score",
+    values_drop_na = TRUE
+  ) |> 
+  mutate(
+    week = readr::parse_number(week)
+  )
+stroke.long
+```
+
+
+```{r}
+stroke.long |> ggplot(aes(x=week, y=score, group=Subject)) +
+  geom_line(aes(color = Group, linetype = Group), size=1) + theme_bw() + theme(
+  # Hide panel borders and remove grid lines
+  #panel.border = element_line(colour = "black"),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  # Change axis line
+  #axis.line = element_line(colour = "black")
+)
+```
+
+```{r}
+stroke.long |> 
+  group_by(Group,week) |> 
+  summarize(average=mean(score, na.rm = TRUE),
+            .groups = "drop") |> 
+  ggplot(aes(x=week, y=average)) +
+  geom_line(aes(color = Group, linetype = Group), size=1) + theme_bw() + theme(
+  # Hide panel borders and remove grid lines
+  #panel.border = element_line(colour = "black"),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  # Change axis line
+  #axis.line = element_line(colour = "black")
+)
+```
+
+```{r}
+stroke.wide
+```
+
+```{r}
+pairs(stroke.wide[, 3:10], main = "Scatter Plot Matrix for stroke Dataset")
+```
+
+```{r}
+library(ggplot2) 
+library(GGally) 
+ggpairs(stroke.wide[, 3:10], 
+        title = "Scatter Plot Matrix for stroke Dataset", 
+        axisLabels = "show")
+```
+
+```{r}
+library("gpairs")
+gpairs(data.frame(stroke.wide[, 3:10]))
+```
+
+
+```{r}
+library(ggplot2)
+ggcorr(stroke.wide[, 3:10],
+       low = "#3B9AB2",
+       mid = "#EEEEEE",
+       high = "#F21A00",
+       midpoint = 0.75,
+       limits = c(0.5, 1))
+```
+
+```{r}
+cor(stroke.wide[, 3:10], method = c("pearson"))
+```
+
+```{r}
+#model 11.1
+#Table11.3
+lmodel1 <- lm(score ~ Group+week, data = stroke.long)
+summary(lmodel1)
+```
+
+
+
+```{r}
+#model 11.2
+lmodel2 <- lm(score ~ Group*week, data = stroke.long)
+summary(lmodel2)
+```
+
+
+```{r}
+#Estimates of intercepts and slopes (and their standard errors) for each subject
+#model 11.3, table 11.4
+library(dplyr)
+library(broom)
+stroke.long |> group_by(Subject) |> 
+  do(model = lm(score ~ week, data = .)) |>
+  pull(model)
+```
+
+```{r}
+stroke.long |> group_by(Subject) |> 
+  do(model = lm(score ~ week, data = .)) |> 
+  pull(model) |> purrr::map(summary)
+```
+
+
+```{r}
+library(tidyverse)
+models <- stroke.long |> group_by(Subject) |> 
+  do(model = lm(score ~ week, data = .)) |> 
+  pull(model) |> purrr::map(tidy)
+models[[1]][,1:3]
+```
+
+```{r}
+models[[1]][,1:3] |> pivot_wider(names_from = term, values_from = c(estimate, std.error))
+```
+
+```{r}
+#Table11.4
+models2 <- models |> purrr::map(\(table) table[,1:3]) |> 
+  map(~ (pivot_wider(.x, names_from=1,values_from= c(2,3))))
+models2
+```
+
+```{r}
+#Table 11.4
+names(models2) <- seq(1:24)
+bind_rows(models2, .id = "Subject")
+```
+
+```{r}
+models3 <- bind_rows(models2, .id = "Subject")
+models3["Groups"] <- factor(c(rep("A", 8), rep("B", 8), rep("C", 8)))
+models3
+```
+
+```{r}
+#Table 11.5 Analysis of variance of intercept estimates
+summary(lm(`estimate_(Intercept)` ~ Groups, data = models3))
+```
+
+```{r}
+#Table 11.6 Analysis of variance of slope estimates
+summary(lm(estimate_week ~ Groups, data = models3))
+```
+
+```{r}
+stroke.long <- stroke.wide |> pivot_longer(
+    cols = starts_with("week"), 
+    names_to = "week", 
+    values_to = "score",
+    values_drop_na = TRUE
+  ) |> 
+  mutate(
+    week = readr::parse_number(week),
+    Group = factor(Group)
+  )
+colnames(stroke.long) <- c("Subject","Group","time","ability")
+stroke.long
+```
+```{r}
+#model 11.2 pooled
+lmodel2 <- glm(ability ~ Group*time, data = stroke.long)
+summary(lmodel2)
+```
+
+The estimate of $\sigma_e$ is square root of the deviance divided by
+the degrees of freedom
+
+```{r}
+lmodel2$df.residual
+lmodel2$deviance
+#The estimate of \sigma_e is
+sqrt(lmodel2$deviance/lmodel2$df.residual)
+```
+
+
+
+```{r}
+#the deviance
+sum((lmodel2$fitted.values - lmodel2$data$ability)^2)
+```
+
+
+```{r}
+#Data reduction
+summary(lm(`estimate_(Intercept)` ~ Groups, data = models3))
+summary(lm(estimate_week ~ Groups, data = models3))
+```
+
+```{r}
+library(geepack)
+#GEE independent
+gee.ind<-geeglm(ability~Group*time,
+                family=gaussian("identity"), 
+                data=stroke.long,
+                id=Subject,
+                wave=time,
+                std.err = 'san.se',
+                corst="independence")
+summary(gee.ind)
+```
+```{r}
+gee.ind$coefficients
+summary(gee.ind)$coefficients
+```
+
+
+```{r}
+#GEE exchangeable
+gee.exch<-geeglm(ability~Group*time,family=gaussian, 
+                 std.err = 'san.se',
+                 data=stroke.long,
+                 id=Subject,
+                 wave=time,
+                 corst="exchangeable")
+summary(gee.exch)
+```
+```{r}
+gee.exch$cor.link
+```
+
+```{r}
+#the df
+gee.exch$df.residual
+#the deviance
+sum((gee.exch$fitted.values - gee.exch$data$ability)^2)
+#The estimate of \sigma_e is
+sqrt(sum((gee.exch$fitted.values - gee.exch$data$ability)^2)/gee.exch$df.residual)
+```
+
+```{r}
+#an autoregressive model of order 1, AR(1),
+gee.ar1<-geeglm(ability~Group*time,
+                family=gaussian,
+                std.err = 'san.se',
+                data=stroke.long,
+                id=Subject,
+                wave=time,
+                corst="ar1")
+summary(gee.ar1)
+```
+
+```{r}
+#the df
+gee.ar1$df.residual
+#the deviance
+sum((gee.ar1$fitted.values - gee.ar1$data$ability)^2)
+#The estimate of \sigma_e is
+sqrt(sum((gee.ar1$fitted.values - gee.ar1$data$ability)^2)/gee.ar1$df.residual)
+```
+
+```{r}
+summary(gee.ar1)$coefficients
+```
+
+
+```{r}
+#GEE unstructured
+gee.un<-geeglm(ability~Group*time,
+               family=gaussian,
+               data=stroke.long,
+               id=Subject,
+               wave=time,
+               corst="unstructured")
+summary(gee.un)
+```
+```{r}
+#the df
+gee.un$df.residual
+#the deviance
+sum((gee.un$fitted.values - gee.un$data$ability)^2)
+#The estimate of \sigma_e is
+sqrt(sum((gee.un$fitted.values - gee.un$data$ability)^2)/gee.un$df.residual)
+```
+
+- `nlme::lme`: this package uses a "within-between" or parameter-counting approach, which is adequate for simpler model structures (single-term or nested models), but which gets progressively less applicable/harder for random-slopes models (see comments in the GLMM FAQ), crossed random effects, unbalanced designs, or more complex random effect structures where the random effects themselves are no longer iid 
+
+```{r}
+#random effects models
+library(nlme)
+rndeff<-lme(ability~Group*time,
+            data=stroke.long,
+            random=~1|Subject)
+summary(rndeff)
+```
+
+
+```{r}
+ind<-corAR1(form = ~ 1 | Subject)
+gls.ind<-gls(ability~Group*time, 
+             data=stroke.long,
+             correlation=ind)
+summary(gls.ind)
+```
+```{r}
+gls.ind$coefficients
+summary(gls.ind)$coefficients
+```
+
+```{r}
+exch<-corCompSymm(form = ~ 1 | Subject)
+gls.exch<-gls(ability~Group*time, 
+              data=stroke.long,
+              correlation=exch)
+summary(gls.exch)
+```
+```{r}
+summary(gls.exch)$coefficients
+```
+
+```{r}
+ar1<-corAR1(form = ~ 1 | Subject)
+gls.ar1<-gls(ability~Group*time, data=stroke.long,
+             correlation=ar1)
+summary(gls.ar1)
+```
+
+
+```{r}
+un<-corSymm(form = ~ 1 | Subject)
+gls.un<-gls(ability~Group+time+Group*time, data=stroke.long,
+            correlation=un)
+summary(gls.un)
+```
+```{r}
+AIC(gls.ind,gls.exch,gls.ar1,gls.un)
+```
+
+```{r}
+#Exercises 11.1
+#Table11.9
+dogs
+```
+
+```{r}
+#Pooled
+Pooled.dogs <- glm(y ~ x, data = dogs)
+summary(Pooled.dogs)
+```
+
+```{r}
+models.dog <- dogs |> group_by(dog) |> 
+  do(model = lm(y ~ x, data = .)) |> 
+  pull(model) |> purrr::map(tidy)
+models.dog
+```
+
+
+```{r}
+models.dog2 <- models.dog |> purrr::map(\(table) table[,1:3]) |> 
+  map(~ (pivot_wider(.x, names_from=1,values_from= c(2,3))))
+models.dog2
+```
+
+```{r}
+names(models.dog2) <- seq(1:5)
+models.dog3 <- bind_rows(models.dog2, .id = "dog")
+models.dog3["dog"] <- c(seq(1:5))
+models.dog3
+```
+
+```{r}
+mean(models.dog3$`estimate_(Intercept)`)
+```
+
+```{r}
+#Data reduction
+#dogs, ignoring conditions
+
+#Intercept (s.e.)
+summary(lm(`estimate_(Intercept)` ~ 1, data = models.dog3))
+#Slope (s.e.)
+summary(lm(estimate_x ~ 1, data = models.dog3))
+```
+
+```{r}
+#Data reduction
+#conditions, ignoring dogs
+models.dog4 <- dogs |> group_by(condition) |> 
+  do(model = lm(y ~ x, data = .)) |> 
+  pull(model) |> purrr::map(tidy)
+models.dog5 <- models.dog4 |> purrr::map(\(table) table[,1:3]) |> 
+  map(~ (pivot_wider(.x, names_from=1,values_from= c(2,3))))
+names(models.dog5) <- seq(1:8)
+models.dog6 <- bind_rows(models.dog5, .id = "condition")
+models.dog6["condition"] <- c(seq(1:8))
+models.dog6
+```
+
+```{r}
+#Data reduction
+#conditions, ignoring dogs
+
+#Intercept (s.e.)
+summary(lm(`estimate_(Intercept)` ~ 1, data = models.dog6))
+#Slope (s.e.)
+summary(lm(estimate_x ~ 1, data = models.dog6))
+```
+
+```{r}
+#Random effects
+#dogs random, conditions fixed
+library(nlme)
+rndeff.dog<-lme(y~factor(condition)+x,
+            data=dogs,
+            random= ~ 1|dog)
+summary(rndeff.dog)
+```
+
+```{r}
+#Random effects
+#conditions random, dogs fixed
+rndeff.condition<-lme(y~factor(dog)+x,
+            data=dogs,
+            random= ~ 1|condition)
+summary(rndeff.condition)
+```
+
+```{r}
+#Random effects
+#both random,
+rndeff.both<-lme(y~x,
+            data=dogs,
+            random= ~ dog|condition)
+summary(rndeff.both)
+```
+
+```{r}
+#GEE conditions fixed
+dogs$dog2 <- seq(1:40)
+gee.ind.dog<-geeglm(y~factor(dog)+x,
+                family=gaussian("identity"), 
+                data=dogs,
+                #weights=condition,
+                id=condition,
+                #corstr = "fixed",
+                std.err = 'san.se',
+                corst="independence")
+summary(gee.ind.dog)
+```
+
+```{r}
+gee.ind.condition<-geeglm(y~factor(condition)+x,
+                family=gaussian("identity"), 
+                data=dogs,
+                #weights=condition,
+                id=dog,
+                #corstr = "fixed",
+                std.err = 'san.se',
+                corst="independence")
+summary(gee.ind.condition)
+```
+
+
+#### EXERCISES 11.2 
+
+$$\mathbf b=\mathbb E(\hat{\boldsymbol\beta})=\mathbb E((\mathbf{X}^T\mathbf{V}^{-1}\mathbf{X})^{-1}\mathbf{X}^T\mathbf{V}^{-1}\mathbf{y})\\
+=(\mathbf{X}^T\mathbf{V}^{-1}\mathbf{X})^{-1}\mathbf{X}^T\mathbf{V}^{-1}\mathbb E(\mathbf{y})\\
+=(\mathbf{X}^T\mathbf{V}^{-1}\mathbf{X})^{-1}\mathbf{X}^T\mathbf{V}^{-1}\mathbf{X}\hat{\boldsymbol\beta}\\
+=\hat{\boldsymbol\beta}$$
+
+```{r}
+ear
+```
+
+```{r}
+ear2 <- ear |> group_by(age, treatment) |> mutate(ratio=frequency/sum(frequency)) |> ungroup()
+ear2
+```
+
+
+```{r}
+#Pooled
+Pooled.ear1 <- glm(`number clear` ~ factor(age)*factor(treatment),
+                   weights = ratio,
+                  data = ear2)
+summary(Pooled.ear1)
+```
+
+```{r}
+ear2$age <- factor(ear2$age)
+ear2$treatment <- factor(ear2$treatment)
+ear2
+```
+
+```{r}
+models <- ear2 |> group_by(age) |> 
+  do(model = lm(`number clear` ~ factor(treatment),
+                   weights = ratio, data = .)) |> 
+  pull(model) |> purrr::map(tidy)
+models2 <- models |> purrr::map(\(table) table[,1:3]) |> 
+  map(~ (pivot_wider(.x, names_from=1,values_from= c(2,3))))
+names(models2) <- c("< 2",">6","2 to 5")
+models3 <- bind_rows(models2, .id = "age")
+models3
+```
+
+```{r}
+models <- ear2 |> group_by(treatment) |> 
+  do(model = lm(`number clear` ~ factor(age),
+                   weights = ratio, data = .)) |> 
+  pull(model) |> purrr::map(tidy)
+models2 <- models |> purrr::map(\(table) table[,1:3]) |> 
+  map(~ (pivot_wider(.x, names_from=1,values_from= c(2,3))))
+names(models2) <- c("AMO","CEF")
+models3 <- bind_rows(models2, .id = "treatment")
+models3
+```
+
+```{r}
+#logistic model 
+library(nnet)
+res.ear=multinom(`number clear`~age+treatment, weights=frequency,data=ear2)
+summary(res.ear)
+```
+
+```{r}
+t(res.ear$fitted.values[seq(1,18, by=3),])
+res.ear$edf
+```
+
+```{r}
+ear3 <- ear |> group_by(age, treatment) |> mutate(n=sum(frequency)) |> ungroup()
+estimate <- matrix(t(res.ear$fitted.values[seq(1,18, by=3),]))*ear3$n
+estimate
+observe <- matrix(ear2$frequency)
+observe
+```
+
+
+```{r}
+#X^2
+sum(((observe-estimate)/estimate)^2)
+```
+
+
+## Chapter12 Bayesian Analysis  
+
+```{r}
+P_theta <- 0.0333
+for(theta in c(seq(0,0.5, 0.1))){
+  #P(y|theta)
+  print(choose(10,7)*theta^7*(1-theta)^3)
+}
+```
+
+```{r}
+Likelihood <- function(theta){
+  choose(10,7)*theta^7*(1-theta)^3
+}
+```
+
+```{r}
+#Table 12.1
+library(tidyverse)
+tibble(theta = c(seq(0,1.0, 0.1)), 
+       Hypothesis=c(rep('H0', 6),rep('H1', 5))) |> mutate(
+          Prior = c(rep(0.0333, 6),rep(0.16,5)),
+          Likelihood = choose(10,7)*theta^7*(1-theta)^3,
+          LikelihoodXPrior= Prior*Likelihood,
+          Posterior = LikelihoodXPrior/sum(LikelihoodXPrior)
+)
+```
+
+```{r}
+log(log(0.15)/log(0.25))
+```
+
+```{r}
+x = seq(-0.8, 1.2, 0.01)
+y = dnorm(x, mean = 0, sd = 0.1907)
+Likelihood = dnorm(x, mean = 0.58, sd = 0.2266)
+h=function(x){dnorm(x, mean = 0, sd = 0.1907)*dnorm(x, mean = 0.58, sd = 0.2266)}
+c = integrate(h,-0.8, 1.2)
+Posterior = y*Likelihood/c$value
+plot(x, y, type = "l", col = "gray",
+     lty = 2, xlab="LHR", cex.lab=1.5, cex.main=1.5,
+     ylim = c(0,3), xlim = c(-0.8,1.2),
+     lwd=2)
+text(-0.5, .6*max(y) , "Sceptical prior", cex=1.5 )
+lines(x, Likelihood, type = "l", col = "gray",
+     lty = 1,  cex.lab=1.5,
+     cex.main=1.5, lwd=2)
+text(1.0, .6*max(Likelihood) , "Likelihood", cex=1.5 )
+lines(x, Posterior, type = "l", col = "skyblue",
+     lty = 1,  cex.lab=1.5,
+     cex.main=1.5, lwd=2)
+text(0.3, max(Posterior) +0.2, "Posterior", col = "skyblue", 
+     cex=1.5 )
+```
+
+```{r}
+x = seq(-0.8, 1.2, 0.01)
+y = dunif(x, min = -0.6, max = 1.2)
+Likelihood = dnorm(x, mean = 0.58, sd = 0.2266)
+h=function(x){dunif(x, min = -0.6, max = 1.2)*dnorm(x, mean = 0.58, sd = 0.2266)}
+c = integrate(h,-0.8, 1.2)
+Posterior = y*Likelihood/c$value
+plot(x, y, type = "l", col = "gray",
+     lty = 2, xlab="LHR", cex.lab=1.5, cex.main=1.5,
+     ylim = c(0,3), xlim = c(-0.8,1.2),
+     lwd=2)
+text(-0.5, .6*max(y) , "Uninformative prior", cex=1.5 )
+lines(x, Likelihood, type = "l", col = "gray",
+     lty = 1,  cex.lab=1.5,
+     cex.main=1.5, lwd=2)
+text(1.0, .6*max(Likelihood) , "Likelihood", cex=1.5 )
+lines(x, Posterior, type = "l", col = "skyblue",
+     lty = 1,  cex.lab=1.5,
+     cex.main=1.5, lwd=2)
+text(0.3, max(Posterior) +0.2, "Posterior", col = "skyblue", 
+     cex=1.5 )
+```
+
+```{r}
+x = seq(-0.8, 1.2, 0.01)
+y = dnorm(x, mean = 0, sd = 0.1907)
+Likelihood = dnorm(x, mean = 0.58, sd = 0.2266)
+h=function(x){dnorm(x, mean = 0, sd = 0.1907)*dnorm(x, mean = 0.58, sd = 0.2266)}
+c = integrate(h,-0.8, 1.2)
+
+Posterior_f = function(x){dnorm(x, mean = 0, sd = 0.1907)*dnorm(x, mean = 0.58, sd = 0.2266)/c$value}
+
+#The mean
+x[Posterior_f(x) == max(Posterior_f(x))]
+sum(Posterior_f(x)*x*0.01)
+```
+
+```{r}
+#The probability that improvement is greater than 10% corresponding to LHR = 0.3137)
+x2 = seq(0.3137, 1.2, 0.01)
+sum(Posterior_f(x2)*0.01)
+```
+
+```{r}
+qbeta(0.025,shape1=1, shape2=92)
+qbeta(0.975,shape1=1, shape2=92)
+```
+
+```{r}
+#Exercises 12.1
+library(tidyverse)
+data1 <- tibble(theta = c(seq(0,1.0, 0.1)), 
+       Hypothesis=c(rep('H0', 6),rep('H1', 5))) |> mutate(
+          Prior = c(rep(0.5/6, 6),rep(0.5/5,5)),
+          Likelihood = choose(10,5)*theta^5*(1-theta)^5,
+          LikelihoodXPrior= Prior*Likelihood,
+          Posterior = LikelihoodXPrior/sum(LikelihoodXPrior)
+)
+data1
+sum(data1$Posterior[data1$theta>0.5])
+```
+
+```{r}
+data1 <- tibble(theta = c(seq(0,1.0, 0.1)), 
+       Hypothesis=c(rep('H0', 6),rep('H1', 5))) |> mutate(
+          Prior = c(rep(0.5/6, 6),rep(0.5/5,5)),
+          Likelihood = choose(10,1)*theta^1*(1-theta)^9,
+          LikelihoodXPrior= Prior*Likelihood,
+          Posterior = LikelihoodXPrior/sum(LikelihoodXPrior)
+)
+data1
+sum(data1$Posterior[data1$theta>0.5])
+```
+
+```{r}
+data1 <- tibble(theta = c(seq(0,1.0, 0.1)), 
+       Hypothesis=c(rep('H0', 6),rep('H1', 5))) |> mutate(
+          Prior = c(rep(0.01/6, 6),rep(0.99/5,5)),
+          Likelihood = choose(10,5)*theta^5*(1-theta)^5,
+          LikelihoodXPrior= Prior*Likelihood,
+          Posterior = LikelihoodXPrior/sum(LikelihoodXPrior)
+)
+data1
+sum(data1$Posterior[data1$theta>0.5])
+```
+
+```{r}
+data1 <- tibble(theta = c(seq(0,1.0, 0.1)), 
+       Hypothesis=c(rep('H0', 6),rep('H1', 5))) |> mutate(
+          Prior = c(rep(0.01/6, 6),rep(0.99/5,5)),
+          Likelihood = choose(10,1)*theta^1*(1-theta)^9,
+          LikelihoodXPrior= Prior*Likelihood,
+          Posterior = LikelihoodXPrior/sum(LikelihoodXPrior)
+)
+data1
+sum(data1$Posterior[data1$theta>0.5])
+```
+
+
+```{r}
+library(Bolstad)
+theta.space<-(0:10)/10
+theta.mass<-c(rep(0.5/6,6),rep(0.5/5,5))
+post<-binodp(5,10,pi=theta.space,pi.prior=theta.mass,ret=TRUE)
+sum(post$posterior[7:11])
+```
+
+
+```{r}
+#Exercises 12.2
+mean <- 0.3137
+sigma <- 0.1907
+prior_f <- function(theta) {1/(sigma*sqrt(2*base::pi))*exp(-(theta-mean)^2/(2*sigma^2))}
+x = seq(-0.8, 1.2, 0.01)
+#prior probability that the new treatment is effective
+integrate(prior_f,0, 1.2)
+```
+
+```{r}
+#posterior probability that the new treatment is effective
+sigma2 <- 0.2266
+mean2 <- 0.58
+L_Prior <- function(theta) {1/(sigma2*sqrt(2*base::pi))*exp(-(theta-mean2)^2/(2*sigma2^2))*1/(sigma*sqrt(2*base::pi))*exp(-(theta-mean)^2/(2*sigma^2))}
+c <- integrate(L_Prior, -1.2, 1.2)$value
+posterior_f <- function(theta) {1/(sigma2*sqrt(2*base::pi))*exp(-(theta-mean2)^2/(2*sigma2^2))*1/(sigma*sqrt(2*base::pi))*exp(-(theta-mean)^2/(2*sigma^2))/c}
+integrate(posterior_f, 0, 1.5)
+```
+
+## Chapter13 Markov Chain Monte Carlo Methods 
+
+
+```{r}
+N=10000
+x <- rnorm(N,mean=2,sd=1)+rnorm(N,mean=5,sd=0.5)
+Fn <- ecdf(x)
+Fn(4)
+plot(Fn, verticals = TRUE, do.points = FALSE)
+```
+```{r}
+inverse = function (f, lower = -100, upper = 100) {
+   function (y) uniroot((function (x) f(x) - y), lower = lower, upper = upper)[[1]]
+}
+
+ecdf_inverse = inverse(function (x) Fn(x), 0.1, 100)
+
+ecdf_inverse(0.5)
+```
+
+```{r}
+u <- runif(N)
+thetas <- sapply(u, ecdf_inverse)
+hist(thetas)
+```
+
+
+```{r}
+library(tidyverse)
+theta <- seq(-1,7,0.01)
+d_theta = 0.5*dnorm(theta,mean=2,sd=1)+0.5*dnorm(theta,mean=5,sd=0.5)
+
+curve(0.5*dnorm(x,mean=2,sd=1)+0.5*dnorm(x,mean=5,sd=0.5), -1, 7, col="sienna", 
+    lwd=2,n=1001, ylab="PDF", xlab="theta")
+data = tibble('x'=theta, 'y'=d_theta)
+
+data2 <- data[sample(seq_len(nrow(data)), 50, prob=data$y),]
+segments(x0 = data2$x,
+         y0 = 0,
+         x1 = data2$x,
+         y1 = data2$y,
+         col= 'black',
+         lwd = 1)
+```
+
+```{r}
+theta <- seq(-1,7,0.01)
+d_theta = 0.5*dnorm(theta,mean=2,sd=1)+0.5*dnorm(theta,mean=5,sd=0.5)
+
+curve(0.5*dnorm(x,mean=2,sd=1)+0.5*dnorm(x,mean=5,sd=0.5), -1, 7, col="sienna", 
+    lwd=2,n=1001, ylab="PDF", xlab="theta") # plots the results
+
+data = tibble('x'=theta, 'y'=d_theta)
+data2 <- data[sample(seq_len(nrow(data)), 500, prob=data$y),]
+
+segments(x0 = data2$x,
+         y0 = 0,
+         x1 = data2$x,
+         y1 = data2$y,
+         col= 'black',
+         type="l",
+         lwd = 0.1)
+```
+
+
+
+```{r}
+data2 <- data[sample(seq_len(nrow(data)), 50, prob=data$y),]
+hist(data2$x,
+     breaks = seq(from=-1, to=7, by=0.5),
+        main="",
+        col="white",
+        xlab="theta",
+     ylab="Counts")
+axis(side=1, at=seq(from=-1, to=7, by=1))
+```
+
+```{r}
+data2 <- data[sample(seq_len(nrow(data)), 500, prob=data$y),]
+hist(data2$x,
+     breaks = seq(from=-1, to=7, by=0.2),
+        main="",
+        col="white",
+        xlab="theta",
+     ylab="Counts")
+axis(side=1, at=seq(from=-1, to=7, by=1))
+```
+
+```{r}
+data2 <- data[sample(seq_len(nrow(data)), 500, prob=data$y),]
+#sample mean
+weighted.mean(data2$x,data2$y)
+weighted.mean(data$x,data$y)
+
+#True mean
+c <- integrate(\(x) (0.5*dnorm(x,mean=2,sd=1)+0.5*dnorm(x,mean=5,sd=0.5)), -10, 10)
+density_x <- function(x){
+  (dnorm(x,mean=2,sd=1)+dnorm(x,mean=5,sd=0.5))*x/c$value
+}
+integrate(density_x, -10, 10)$value
+
+#True variance
+c <- integrate(\(x) (dnorm(x,mean=2,sd=1)+dnorm(x,mean=5,sd=0.5)), -10, 10)
+density_x_x <- function(x){
+  (dnorm(x,mean=2,sd=1)+dnorm(x,mean=5,sd=0.5))*x*x/c$value
+}
+integrate(density_x_x, -10, 10)$value - (integrate(density_x, -10, 10)$value)^2
+```
+```{r}
+(2+5)*0.5
+(1^2+(5-3.5)^2)*0.5+(0.5^2+(2-3.5)^2)*0.5
+```
+
+
+```{r}
+#sample median
+data2 <- data[sample(seq_len(nrow(data)), 500, prob=data$y),]
+quantile(data2$x, c(0.5))
+
+#True median
+for (i in 1:7) {
+  if(abs(integrate(\(x) (0.5*dnorm(x,mean=2,sd=1)+0.5*dnorm(x,mean=5,sd=0.5)), -10, i)$value - 0.5)<0.001){
+    print(i)
+  }
+}
+```
+
+
+```{r}
+y=c(6,13,18,28,52,53,61,60)
+n=c(59,60,62,56,63,59,62,60)
+x=c(1.6907,1.7242,1.7552,1.7842,1.8113,1.8369,1.8610,1.8839)
+x_mean = x-mean(x)
+n_y=n-y
+beetle.mat=cbind(y,n_y)
+beetle.mat
+```
+```{r}
+beetle
+```
+
+
+
+```{r}
+res.glm1=glm(beetle.mat~x_mean, family=binomial(link="logit"))
+res.glm1
+logLik(res.glm1)
+```
+
+```{r}
+#Extreme value model 
+res.glm3=glm(beetle.mat~x_mean, family=binomial(link="cloglog"))
+res.glm3
+logLik(res.glm3)
+```
+
+```{r}
+beta_1 = 0.7438
+beta_2 = seq(20,40, 0.2)
+mean_x = mean(x)
+#pi = exp(beta_1 + beta_2*(x-mean_x))/(1+exp(beta_1 + beta_2*(x-mean_x)))
+#pi/(1-pi) = (exp(beta_1 + beta_2*(x-mean_x))/(1+exp(beta_1 + beta_2*(x-mean_x))))/(1/(1+exp(beta_1 + beta_2*(x-mean_x))))
+#log(pi/(1-pi)) = beta_1 + beta_2*(x-mean_x)
+loglh <- function(beta2){
+  sum(y*(beta_1+beta2*x_mean)+n*log(1/(1+exp(beta_1+beta2*x_mean)))+log(choose(n, y)))
+}
+
+lh_beta2 = sapply(beta_2, loglh)
+lh_beta2
+```
+
+```{r}
+beta_1 = 0.7438
+y=c(6,13,18,28,52,53,61,60)
+n=c(59,60,62,56,63,59,62,60)
+x=c(1.6907,1.7242,1.7552,1.7842,1.8113,1.8369,1.8610,1.8839)
+x_mean = x-mean(x)
+n_y=n-y
+lh <- function(beta_2){
+  prod(exp(y*(beta_1+beta_2*x_mean)+n*log(1/(1+exp(beta_1+beta_2*x_mean)))+log(choose(n, y))))
+}
+
+
+beta2 <- c()
+beta2[1] <- 1
+for (i in 1:1000) {
+  beta2_star <- beta2[i]+rnorm(1)
+  alpha <- min((lh(beta2_star)/lh(beta2[i])),1)
+  u <- runif(1,min = 0, max = 1)
+  beta2[i+1] <- ifelse(alpha>u, beta2_star, beta2[i])
+}
+
+```
+
+```{r}
+plot(beta2)
+```
+
+## Chapter14 Example Bayesian Analyses 
+
+
+```{r}
+#Extreme value model 
+res.glm3=glm(beetle.mat~x, family=binomial(link="cloglog"))
+res.glm3
+logLik(res.glm3)
+res.glm3$deviance
+```
+```{r}
+#probit model 
+res.glm2=glm(beetle.mat~x, family=binomial(link="probit"))
+res.glm2
+logLik(res.glm2)
+res.glm2$deviance
+```
+
+
+
+```{r}
+# manually calculating the quantile residual
+library(statmod)
+qresid(res.glm1)
+```
+
+Let $y_i$ is the proportion of the success and $\hat\mu_i$ is the fitted values of the model:  
+
+**Response**:
+$$y_i - \hat\mu_i$$
+ response residuals are inadequate for assessing a fitted glm, because GLMs are based on distributions where (in general) the variance depends on the mean.
+
+**Pearson**:
+ 
+The most direct way to handle the non-constant variance is to divide
+it out:
+$$ \frac{y_i - \hat\mu_i}{\sqrt{V(\mu_i)|_{\hat\mu_i}}}$$
+where $V()$ is the (GLM) variance function ($Var(y_i) = a(\phi)*V(\mu_i)$)
+
+Under "Small dispersion asymptotics" conditions, the Pearson residuals have an approximate normal distribution.
+
+**Deviance**: $$sign(y_i-\hat\mu_i)*\sqrt{d_i}$$ where $d_i$ is the unit deviance, i.e. $$d_i = 2(t(y_i,y_i)-t(y_i,\hat\mu_i))$$ For Deviance for a Poisson model:
+$$sign(o_i-e_i)*\sqrt{d_i}=sign(o_i-e_i)*\sqrt{2[o_i\log(o_i/e_i)-(o_i-e_i)]}, \quad i=1,\dots,N$$
+
+The deviance statistic (sum of squared unit-deviances) has an approximate chi-square distribution (when the saddlepoint approximation applies and under "Small dispersion asymptotics" conditions). Under these same conditions, the deviance **residuals** have an approximate normal distribution.
+
+**Working**:
+$$z_i - \eta_i $$
+where $z_i$ are the working responses $\eta_i + \frac{d\eta_i}{d\mu_i}(y_i-\hat\mu_i)$ and $\eta_i$ is the linear predictor. Meaning you get that the residual is $\frac{d\eta_i}{d\mu_i}(y_i-\hat\mu_i)$.
+
+The model coefficients are fitted using Fisher scoring algorithm / Iterative Reweighted Least Square (IRLS). And [it can be shown][1] that each iteration of this algorithm is equivalent to doing ordinary least-squares on the working responses as defined here.
+
+To test the link function - plotting the linear predictor against the working **responses** should come out linear if the right link function was used.
+
+**Partial**:
+$$z_i - \eta_i + X^*\beta$$
+
+where $X^*$ is the centered $X$. Partial residuals can be used to determine if a covariate/predictor is on an inappropriate scale. 
+
+**Quantile**:
+$$\Phi^{-1}(F(y_i))$$
+
+Where $F(y_i)$ is the CDF of $y_i$, and $\Phi^{-1}$ is the quantile function of standard normal (inverse CDF). For discrete $y_i$'s you take $u \sim Unif(F(y_i-1), F(y_i))$ and $\Phi^{-1}(u)$.
+
+Here is an example code to calculate these residuals:
+```{r}
+Y = c(0,0,0,0,1,1,1,1,1)
+x1 = c(1,2,3,1,2,2,3,3,3)
+x2 = c(1,0,0,1,0,0,0,0,0)
+    
+fit = glm(Y ~ x1 + x2, family = 'binomial')
+    
+lp = predict(fit)
+mu = exp(lp)/(1+exp(lp))
+    
+# manually calculating the 1st response residual
+resid(fit, type="response")[1]
+Y[1] - mu[1]
+    
+# manually calculating the 1st pearson residual
+resid(fit, type="pearson")[1]
+(Y[1]-mu[1]) / sqrt(mu[1]*(1-mu[1]))
+    
+# manually calculating the 1st deviance residual
+resid(fit, type="deviance")[1]
+sqrt(-2*log(1-mu[1]))*sign(Y[1]-mu[1])
+    
+# manually calculating the 1st working residual
+resid(fit, type="working")[1]
+(Y[1]-mu[1]) / (mu[1]*(1-mu[1]))
+    
+# manually calculating the 1st partial residual
+resid(fit, type="partial")[1,1]
+(Y[1]-mu[1]) / (mu[1]*(1-mu[1])) + fit$coefficients[2]*(x1[1] - mean(x1))
+resid(fit, type="partial")[1,2]
+(Y[1]-mu[1]) / (mu[1]*(1-mu[1])) + fit$coefficients[3]*(x2[1] - mean(x2))
+    
+# manually calculating the 1st quantile residual
+library(statmod)
+qresid(fit)[1] # results are random (uniformly), so won't come the same
+a = pbinom(Y[1]-1, 1, mu[1]) 
+b = pbinom(Y[1], 1, mu[1])
+qnorm(runif(1, a, b)) # results are random (uniformly), so won't come the same
+n = 10000
+mean(replicate(n, qresid(fit)[1]))
+mean(qnorm(runif(1000, a, b))) # should be close
+```
+
+reference: 
+
+[1]: [https://stats.stackexchange.com/questions/1432/what-do-the-residuals-in-a-logistic-regression-mean/485734#485734](https://stats.stackexchange.com/questions/1432/what-do-the-residuals-in-a-logistic-regression-mean/485734#485734)
+

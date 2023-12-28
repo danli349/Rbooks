@@ -1,0 +1,770 @@
+---
+title: "Chapter 20 Evaluation"
+output: html_document
+date: "2023-08-20"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Chapter 20 Evaluation
+
+```{r}
+library(rlang)
+library(purrr)
+```
+
+```{r}
+x <- 10
+expr(x)
+eval(x)
+eval(expr(x))
+#> [1] 10
+
+y <- 2
+eval(expr(x + y))
+#> [1] 12
+```
+
+```{r}
+eval(expr(x + y), env(x = 1000))
+#> [1] 1002
+```
+
+```{r}
+print(x + 1)
+```
+
+```{r}
+eval(print(x + 1), env(x = 1000))
+#> [1] 11
+#> [1] 11
+```
+
+```{r}
+
+eval(expr(print(x + 1)), env(x = 1000))
+#> [1] 1001
+```
+```{r}
+# Clean up variables created earlier
+rm(x, y)
+
+foo <- local({
+  x <- 10
+  y <- 200
+  x + y
+})
+
+foo
+#> [1] 210
+x
+#> Error in eval(expr, envir, enclos): object 'x' not found
+y
+#> Error in eval(expr, envir, enclos): object 'y' not found
+```
+
+```{r}
+rm(x, y)
+local2 <- function(expr) {
+  env <- env(caller_env())
+  #env <- caller_env()
+  eval(enexpr(expr), env)
+}
+
+foo <- local2({
+  x <- 10
+  y <- 200
+  x + y
+})
+
+foo
+#> [1] 210
+x
+#> Error in eval(expr, envir, enclos): object 'x' not found
+y
+#> Error in eval(expr, envir, enclos): object 'y' not found
+```
+
+```{r}
+x <- 10
+y <- 20
+f <- eval(expr(function(x, y) !!x + !!y))
+f
+#> function(x, y) !!x + !!y
+```
+
+```{r}
+f()
+```
+
+```{r}
+eval(expr(function(x, y) !!x + !!y))
+
+expr(function(x, y) !!x + !!y)
+
+eval(expr(function(x, y) x + y))
+```
+
+```{r}
+f <- eval(expr(function(x, y) x + y))
+f
+f()
+```
+
+```{r}
+foo <- function(x) enquo(x)
+foo(a + b)
+#> <quosure>
+#> expr: ^a + b
+#> env:  global
+```
+
+```{r}
+quo(x + y + z)
+#> <quosure>
+#> expr: ^x + y + z
+#> env:  global
+```
+
+```{r}
+new_quosure(expr(x + y), env(x = 1, y = 10))
+#> <quosure>
+#> expr: ^x + y
+#> env:  0x7fac62d44870
+```
+
+```{r}
+q1 <- new_quosure(expr(x + y), env(x = 1, y = 10))
+eval_tidy(q1)
+#> [1] 11
+```
+
+```{r}
+f <- function(...) {
+  x <- 1
+  g(..., f = x)
+}
+g <- function(...) {
+  enquos(...)
+}
+
+x <- 0
+qs <- f(global = x)
+qs
+#> <list_of<quosure>>
+#> 
+#> $global
+#> <quosure>
+#> expr: ^x
+#> env:  global
+#> 
+#> $f
+#> <quosure>
+#> expr: ^x
+#> env:  0x7fac60661d88
+```
+
+```{r}
+map_dbl(qs, eval_tidy)
+#> global      f 
+#>      0      1
+```
+
+```{r}
+f <- ~runif(3)
+str(f)
+#> Class 'formula'  language ~runif(3)
+#>   ..- attr(*, ".Environment")=<environment: R_GlobalEnv>
+```
+
+```{r}
+q4 <- new_quosure(expr(x + y + z))
+class(q4)
+#> [1] "quosure" "formula"
+```
+
+```{r}
+is_call(q4)
+#> [1] TRUE
+
+q4[[1]]
+#> Warning: Subsetting quosures with `[[` is deprecated as of rlang 0.4.0
+#> Please use `quo_get_expr()` instead.
+#> This warning is displayed once per session.
+#> `~`
+q4[[2]]
+#> x + y + z
+```
+
+```{r}
+attr(q4, ".Environment")
+#> <environment: R_GlobalEnv>
+```
+
+```{r}
+get_expr(q4)
+#> x + y + z
+get_env(q4)
+#> <environment: R_GlobalEnv>
+```
+
+```{r}
+q2 <- new_quosure(expr(x), env(x = 1))
+q3 <- new_quosure(expr(x), env(x = 10))
+
+x <- expr(!!q2 + !!q3)
+x
+q2
+q2[[1]]
+q2[[2]]
+eval(q2[[2]])
+eval(x)
+```
+
+```{r}
+eval_tidy(x)
+#> [1] 11
+```
+
+```{r}
+x
+#> (~x) + ~x
+```
+
+```{r}
+expr_print(x)
+#> (^x) + (^x)
+```
+
+```{r}
+q1 <- new_quosure(expr(x * y), env(x = 100))
+df <- data.frame(y = 1:10)
+
+eval_tidy(q1, df)
+#>  [1]  100  200  300  400  500  600  700  800  900 1000
+```
+
+```{r}
+eval_tidy(quo(x * y), data.frame(y = 1:10))
+```
+
+```{r}
+with2 <- function(data, expr) {
+  expr <- enquo(expr)
+  eval_tidy(expr, data)
+}
+
+x <- 100
+with2(df, x * y)
+#>  [1]  100  200  300  400  500  600  700  800  900 1000
+```
+
+```{r}
+expr(x * y)
+eval(expr(x * y), data.frame(y = 1:10), caller_env())
+```
+
+```{r}
+with3 <- function(data, expr) {
+  expr <- substitute(expr)
+  eval(expr, data, caller_env())
+}
+```
+
+```{r}
+with2 <- function(data, expr) {
+  expr <- enquo(expr)
+  eval_tidy(expr, data)
+}
+x <- 1
+df <- data.frame(x = 2)
+
+with2(df, .data$x)
+#> [1] 2
+with2(df, .env$x)
+#> [1] 1
+
+```
+
+```{r}
+with2(df, .data$y)
+#> Error: Column `y` not found in `.data`
+```
+
+
+
+```{r}
+sample_df <- data.frame(a = 1:5, b = 5:1, c = c(5, 3, 1, 4, 1))
+
+# Shorthand for sample_df[sample_df$a >= 4, ]
+subset(sample_df, a >= 4)
+#>   a b c
+#> 4 4 2 4
+#> 5 5 1 1
+
+# Shorthand for sample_df[sample_df$b == sample_df$c, ]
+subset(sample_df, b == c)
+#>   a b c
+#> 1 1 5 5
+#> 5 5 1 1
+```
+
+```{r}
+eval_tidy(quo(b == c), sample_df)
+eval(expr(b == c), sample_df)
+```
+
+```{r}
+subset2 <- function(data, rows) {
+  rows <- enquo(rows)
+  rows_val <- eval_tidy(rows, data)
+  stopifnot(is.logical(rows_val))
+
+  data[rows_val, , drop = FALSE]
+}
+
+subset2(sample_df, b == c)
+#>   a b c
+#> 1 1 5 5
+#> 5 5 1 1
+```
+
+```{r}
+df <- data.frame(x = c(2, 3, 1), y = runif(3))
+transform(df, x = -x, y2 = 2 * y)
+#>    x      y    y2
+#> 1 -2 0.0808 0.162
+#> 2 -3 0.8343 1.669
+#> 3 -1 0.6008 1.202
+```
+
+```{r}
+df <- data.frame(x = c(2, 3, 1), y = runif(3))
+df
+```
+
+```{r}
+eval_tidy(quo(x * 2), df)
+eval_tidy(expr(x * 2), df)
+eval(expr(x * 2), df)
+```
+
+```{r}
+transform2 <- function(.data, ...) {
+  dots <- enquos(...)
+
+  for (i in seq_along(dots)) {
+    name <- names(dots)[[i]]
+    dot <- dots[[i]]
+
+    .data[[name]] <- eval_tidy(dot, .data)
+  }
+
+  .data
+}
+
+transform2(df, x2 = x * 2, y = -y)
+#>   x       y x2
+#> 1 2 -0.0808  4
+#> 2 3 -0.8343  6
+#> 3 1 -0.6008  2
+```
+
+```{r}
+df <- data.frame(a = 1, b = 2, c = 3, d = 4, e = 5)
+subset(df, select = b:d)
+#>   b c d
+#> 1 2 3 4
+```
+
+```{r}
+vars <- as.list(set_names(seq_along(df), names(df)))
+str(vars)
+vars
+#> List of 5
+#>  $ a: int 1
+#>  $ b: int 2
+#>  $ c: int 3
+#>  $ d: int 4
+#>  $ e: int 5
+```
+
+```{r}
+quo(b:d)
+expr(b:d)
+```
+
+```{r}
+map(quos(b:d), eval_tidy, vars)
+unlist(map(quos(b:d), eval_tidy, vars))
+```
+
+```{r}
+cols <- unlist(map(quos(b:d), eval_tidy, vars))
+df[, cols, drop = FALSE]
+```
+
+```{r}
+select2 <- function(data, ...) {
+  dots <- enquos(...)
+
+  vars <- as.list(set_names(seq_along(data), names(data)))
+  cols <- unlist(map(dots, eval_tidy, vars))
+
+  data[, cols, drop = FALSE]
+}
+select2(df, b:d)
+#>   b c d
+#> 1 2 3 4
+```
+```{r}
+resample <- function(df, n) {
+  idx <- sample(nrow(df), n, replace = TRUE)
+  df[idx, , drop = FALSE]
+}
+```
+
+```{r}
+subset2 <- function(data, rows) {
+  rows <- enquo(rows)
+  rows_val <- eval_tidy(rows, data)
+  stopifnot(is.logical(rows_val))
+
+  data[rows_val, , drop = FALSE]
+}
+
+sample_df <- data.frame(a = 1:5, b = 5:1, c = c(5, 3, 1, 4, 1))
+subset2(sample_df, b == c)
+
+
+```
+```{r}
+eval_tidy(quo(b == c), sample_df)
+```
+
+```{r}
+df <- data.frame(x = c(1, 1, 1, 2, 2), y = 1:5)
+subset2(df, x == 1)
+```
+```{r}
+resample <- function(df, n) {
+  idx <- sample(nrow(df), n, replace = TRUE)
+  df[idx, , drop = FALSE]
+}
+
+df2 <- subset2(df, x == 1)
+resample(df2, nrow(df2))
+```
+
+```{r}
+subsample <- function(df, cond, n = nrow(df)) {
+  df <- subset2(df, cond)
+  resample(df, n)
+}
+
+df <- data.frame(x = c(1, 1, 1, 2, 2), y = 1:5)
+subsample(df, x == 1)
+#> Error in eval_tidy(rows, data): object 'x' not found
+```
+
+
+```{r}
+subsample <- function(df, cond, n = nrow(df)) {
+  cond <- enquo(cond)
+
+  df <- subset2(df, !!cond)
+  resample(df, n)
+}
+
+subsample(df, x == 1)
+#>   x y
+#> 3 1 3
+#> 1 1 1
+#> 2 1 2
+```
+
+```{r}
+threshold_x <- function(df, val) {
+  subset2(df, x >= val)
+}
+```
+
+```{r}
+x <- 10
+no_x <- data.frame(y = 1:3)
+threshold_x(no_x, 2)
+#>   y
+#> 1 1
+#> 2 2
+#> 3 3
+```
+
+```{r}
+has_val <- data.frame(x = 1:3, val = 9:11)
+threshold_x(has_val, 2)
+#> [1] x   val
+#> <0 rows> (or 0-length row.names)
+```
+
+```{r}
+threshold_x <- function(df, val) {
+  subset2(df, .data$x >= .env$val)
+}
+
+x <- 10
+threshold_x(no_x, 2)
+#> Error: Column `x` not found in `.data`
+``
+```
+
+```{r}
+threshold_x(has_val, 2)
+#>   x val
+#> 2 2  10
+#> 3 3  11
+```
+
+
+```{r}
+threshold_x <- function(df, val) {
+  subset2(df, .data$x >= !!val)
+}
+```
+
+```{r}
+as_string("x")
+as_string(sym("x"))
+```
+
+```{r}
+df <- data.frame(x = 1:10)
+df[["x"]]
+```
+
+```{r}
+threshold_var <- function(df, var, val) {
+  var <- as_string(ensym(var))
+  subset2(df, .data[[var]] >= !!val)
+}
+
+df <- data.frame(x = 1:10)
+threshold_var(df, x, 8)
+#>     x
+#> 8   8
+#> 9   9
+#> 10 10
+```
+
+```{r}
+threshold_expr <- function(df, expr, val) {
+  expr <- enquo(expr)
+  subset2(df, !!expr >= !!val)
+}
+```
+
+```{r}
+subset_base <- function(data, rows) {
+  rows <- substitute(rows)
+  rows_val <- eval(rows, data, caller_env())
+  stopifnot(is.logical(rows_val))
+
+  data[rows_val, , drop = FALSE]
+}
+
+subset_tidy <- function(data, rows) {
+  rows <- enquo(rows)
+  rows_val <- eval_tidy(rows, data)
+  stopifnot(is.logical(rows_val))
+
+  data[rows_val, , drop = FALSE]
+}
+```
+
+
+```{r}
+f1 <- function(df, ...) {
+  xval <- 3
+  subset_base(df, ...)
+}
+
+my_df <- data.frame(x = 1:3, y = 3:1)
+xval <- 1
+f1(my_df, x == xval)
+#>   x y
+#> 3 3 1
+```
+
+```{r}
+local({
+  zzz <- 2
+  dfs <- list(data.frame(x = 1:3), data.frame(x = 4:6))
+  lapply(dfs, subset_base, x == zzz)
+})
+#> Error in eval(rows, data, caller_env()): object 'zzz' not found
+```
+
+```{r}
+f2 <- function(df1, expr) {
+  call <- substitute(subset_base(df1, expr))
+  expr_print(call)
+  eval(call, caller_env())
+}
+
+my_df <- data.frame(x = 1:3, y = 3:1)
+f2(my_df, x == 1)
+#> subset_base(my_df, x == 1)
+#>   x y
+#> 1 1 3
+```
+
+```{r}
+f3 <- function(df) {
+  call <- substitute(subset_base(df, z > 0))
+  expr_print(call)
+  eval(call, caller_env())
+}
+
+my_df <- data.frame(x = 1:3, y = 3:1)
+z <- -1
+f3(my_df)
+#> subset_base(my_df, z > 0)
+#> [1] x y
+#> <0 rows> (or 0-length row.names)
+```
+```{r}
+g <- function(x, y, z) {
+  match.call()
+}
+g(1, 2, z = 3)
+#> g(x = 1, y = 2, z = 3)
+```
+
+```{r}
+write.csv <- function(...) {
+  call <- match.call(write.table, expand.dots = TRUE)
+
+  call[[1]] <- quote(write.table)
+  call$sep <- ","
+  call$dec <- "."
+
+  eval(call, parent.frame())
+}
+```
+
+
+```{r}
+lm2 <- function(formula, data) {
+  lm(formula, data)
+}
+```
+
+```{r}
+lm(mpg ~ disp, mtcars)
+```
+
+```{r}
+lm2(mpg ~ disp, mtcars)
+#> 
+#> Call:
+#> lm(formula = formula, data = data)
+#> 
+#> Coefficients:
+#> (Intercept)         disp  
+#>     29.5999      -0.0412
+```
+
+
+```{r}
+lm3 <- function(formula, data, env = caller_env()) {
+  formula <- enexpr(formula)
+  data <- enexpr(data)
+
+  lm_call <- expr(lm(!!formula, data = !!data))
+  expr_print(lm_call)
+  eval(lm_call, env)
+}
+
+lm3(mpg ~ disp, mtcars)
+#> lm(mpg ~ disp, data = mtcars)
+#> 
+#> Call:
+#> lm(formula = mpg ~ disp, data = mtcars)
+#> 
+#> Coefficients:
+#> (Intercept)         disp  
+#>     29.5999      -0.0412
+```
+```{r}
+resp <- expr(mpg)
+disp1 <- expr(vs)
+disp2 <- expr(wt)
+lm3(!!resp ~ !!disp1 + !!disp2, mtcars)
+#> lm(mpg ~ vs + wt, data = mtcars)
+#> 
+#> Call:
+#> lm(formula = mpg ~ vs + wt, data = mtcars)
+#> 
+#> Coefficients:
+#> (Intercept)           vs           wt  
+#>       33.00         3.15        -4.44
+```
+
+```{r}
+eval(resp, mtcars)
+```
+
+```{r}
+resample_lm0 <- function(formula, data, env = caller_env()) {
+  formula <- enexpr(formula)
+  resample_data <- resample(data, n = nrow(data))
+
+  lm_call <- expr(lm(!!formula, data = resample_data))
+  expr_print(lm_call)
+  eval(lm_call, env)
+}
+
+df <- data.frame(x = 1:10, y = 5 + 3 * (1:10) + round(rnorm(10), 2))
+resample_lm0(y ~ x, data = df)
+#> lm(y ~ x, data = resample_data)
+#> Error in is.data.frame(data): object 'resample_data' not found
+```
+
+
+```{r}
+resample_lm1 <- function(formula, data, env = caller_env()) {
+  formula <- enexpr(formula)
+  resample_data <- resample(data, n = nrow(data))
+
+  lm_call <- expr(lm(!!formula, data = !!resample_data))
+  expr_print(lm_call)
+  eval(lm_call, env)
+}
+resample_lm1(y ~ x, data = df)$call
+#> lm(y ~ x, data = <data.frame>)
+#> lm(formula = y ~ x, data = list(x = c(3L, 7L, 4L, 4L, 
+#> 2L, 7L, 2L, 1L, 8L, 9L), y = c(13.21, 27.04, 18.63, 
+#> 18.63, 10.99, 27.04, 10.99, 7.83, 28.14, 32.72)))
+```
+```{r}
+resample_lm2 <- function(formula, data, env = caller_env()) {
+  formula <- enexpr(formula)
+  resample_data <- resample(data, n = nrow(data))
+
+  lm_env <- env(env, resample_data = resample_data)
+  lm_call <- expr(lm(!!formula, data = resample_data))
+  expr_print(lm_call)
+  eval(lm_call, lm_env)
+}
+resample_lm2(y ~ x, data = df)
+#> lm(y ~ x, data = resample_data)
+#> 
+#> Call:
+#> lm(formula = y ~ x, data = resample_data)
+#> 
+#> Coefficients:
+#> (Intercept)            x  
+#>        4.42         3.11
+```
+
